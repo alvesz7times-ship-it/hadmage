@@ -25,7 +25,8 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { background: #0a0a0a !important; }
   body { background: #0a0a0a !important; color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; }
-  body::after { content: '秘'; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: clamp(120px,18vw,220px); color: rgba(255,255,255,0.06); font-family: serif; pointer-events: none; z-index: 0; line-height: 1; user-select: none; font-weight: 900; }
+  body::after { content: '秘'; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: clamp(120px,18vw,220px); color: rgba(255,255,255,0.06); font-family: serif; pointer-events: none; z-index: 0; line-height: 1; user-select: none; font-weight: 900; transition: color 0.6s ease; }
+  body.logged-in::after { color: rgba(255,255,255,1); }
   body::before { display: none; }
   .grid-bg { display: none; }
   .container { position: relative; z-index: 1; max-width: 980px; margin: 0 auto; padding: 48px 24px 80px; }
@@ -1166,7 +1167,7 @@
       </div>
     </div>
     <div class="logo">
-      <span style="font-size:56px;color:#111;font-family:serif;line-height:1;user-select:none;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.18));">秘</span>
+      <span style="font-size:56px;color:#ffffff;font-family:serif;line-height:1;user-select:none;filter:drop-shadow(0 2px 8px rgba(255,255,255,0.15));">秘</span>
     </div>
     <div class="header-text">
       <h1><span class="had">Had</span><span class="mage">mage</span></h1>
@@ -3324,6 +3325,7 @@ if (!localStorage.getItem(STORAGE_KEY)) {
   const user   = sessionStorage.getItem('hm_user');
   if (sessao === 'ok') {
     usuarioLogado = { user, role };
+    document.body.classList.add('logged-in');
     document.getElementById('loginOverlay').classList.add('hidden');
     if (role === 'admin') {
       document.getElementById('adminUsersBtn').classList.add('visible');
@@ -3354,6 +3356,7 @@ function doLogin() {
     sessionStorage.setItem('hm_auth', 'ok');
     sessionStorage.setItem('hm_role', encontrado.role);
     sessionStorage.setItem('hm_user', encontrado.user);
+    document.body.classList.add('logged-in');
 
     if (encontrado.role === 'admin') {
       document.getElementById('adminUsersBtn').classList.add('visible');
@@ -3778,6 +3781,7 @@ function doLogout() {
   sessionStorage.removeItem('hm_role');
   sessionStorage.removeItem('hm_user');
   usuarioLogado = null;
+  document.body.classList.remove('logged-in');
   document.getElementById('adminUsersBtn').classList.remove('visible');
   document.getElementById('loginOverlay').style.opacity = '0';
   document.getElementById('loginOverlay').classList.remove('hidden');
