@@ -626,11 +626,7 @@
   .login-locked.visible { display: block; }
   /* Login kanji bg */
   #loginOverlay::after {
-    content: '秘'; position: fixed; top: 50%; left: 50%;
-    transform: translate(-50%,-50%);
-    font-size: clamp(320px,50vw,600px); color: rgba(0,0,0,0.85);
-    font-family: serif; pointer-events: none; z-index: 0;
-    line-height: 1; user-select: none; font-weight: 900;
+    display: none;
   }
   .login-box { z-index: 1; }
 
