@@ -1392,33 +1392,7 @@
 </div>
 <!-- ══ FIM LOGIN ══ -->
 
-<!-- ══ PAINEL DE USUÁRIOS (só admin) ══ -->
-<div id="usersOverlay">
-  <div class="users-box">
-    <div class="users-head">
-      <div>
-        <div class="users-head-title">⚙ Gerenciar Usuários</div>
-        <div class="users-head-sub">Somente o administrador tem acesso</div>
-      </div>
-      <button class="users-close" onclick="fecharUsuarios()">×</button>
-    </div>
-    <div class="users-body">
-      <div class="users-divider">Usuários cadastrados</div>
-      <div class="users-list" id="usersList"></div>
 
-      <div class="users-divider">Adicionar novo usuário</div>
-      <div class="add-user-form">
-        <div class="add-row">
-          <input class="add-input" id="newUser" type="text" placeholder="Usuário" autocomplete="off" />
-          <input class="add-input" id="newPass" type="text" placeholder="Senha" autocomplete="off" />
-        </div>
-        <button class="add-btn" onclick="adicionarUsuario()">+ Adicionar</button>
-        <div class="users-msg" id="usersMsg"></div>
-      </div>
-    </div>
-  </div>
-</div>
-<!-- ══ FIM PAINEL USUÁRIOS ══ -->
 
 <!-- ══ MODAL DE PERMISSÕES ══ -->
 <div id="permsOverlay">
@@ -1458,10 +1432,6 @@
         <span class="conn-status" id="connStatus">Aguardando…</span>
       </div>
       <div class="header-top-right">
-        <button class="admin-users-btn" id="adminUsersBtn" onclick="abrirUsuarios()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-          Usuários
-        </button>
         <div class="user-chip" id="userChip">
           <div class="user-chip-avatar" id="userChipAvatar"></div>
           <div class="user-chip-info">
@@ -3446,71 +3416,23 @@ async function gmailVerEmail(idx) {
 
 })();
 
-// ── Constantes e variáveis globais de autenticação ──
-const STORAGE_KEY      = 'hm_usuarios_v1';
+// ── Autenticação simples (login único) ──
+const CREDENCIAL = { user: 'hadmage', pass: 'hdm2k', role: 'admin' };
 const MAX_TENTATIVAS   = 5;
 const LOCK_SEGUNDOS    = 60;
-
-const USUARIOS_DEFAULT = [
-  { user: 's/6', pass: 'hadmage', role: 'admin' }
-];
 
 let usuarioLogado = null;
 let bloqueado     = false;
 let tentativas    = 0;
 let lockInterval  = null;
 
-// ── Carregar/salvar usuários no localStorage ──
-function carregarUsuarios() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    let lista = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(USUARIOS_DEFAULT));
-
-    // ── Sanitização: garante integridade dos dados ──
-
-    // 1. Renomeia 'admin' para 's/6' se ainda existir com nome antigo
-    lista = lista.map(u => u.user === 'admin' ? { ...u, user: 's/6' } : u);
-
-    // 2. Garante que 's/6' existe e tem role admin
-    const idx = lista.findIndex(u => u.user === 's/6');
-    if (idx === -1) {
-      lista.unshift({ user: 's/6', pass: 'hadmage', role: 'admin' });
-    } else {
-      lista[idx].role = 'admin';
-    }
-
-    // 3. Remove cargo Dono de qualquer outro usuário (só 's/6' pode ser Dono)
-    lista = lista.map(u => u.user === 's/6' ? u : {
-      ...u,
-      role: u.role === 'admin' ? 'user' : (u.role === 'moderator' ? 'moderator' : u.role)
-    });
-
-    // 4. Persiste os dados corrigidos
-    salvarUsuarios(lista);
-    return lista;
-  } catch { return JSON.parse(JSON.stringify(USUARIOS_DEFAULT)); }
-}
-function salvarUsuarios(lista) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(lista));
-}
-
-// Inicializar se nunca salvo
-if (!localStorage.getItem(STORAGE_KEY)) {
-  salvarUsuarios(JSON.parse(JSON.stringify(USUARIOS_DEFAULT)));
-}
-
 // ── Verificar sessão salva ──
 (function() {
   const sessao = sessionStorage.getItem('hm_auth');
-  const role   = sessionStorage.getItem('hm_role');
-  const user   = sessionStorage.getItem('hm_user');
   if (sessao === 'ok') {
-    usuarioLogado = { user, role };
+    usuarioLogado = { user: CREDENCIAL.user, role: CREDENCIAL.role };
     document.body.classList.add('logged-in');
     document.getElementById('loginOverlay').classList.add('hidden');
-    if (role === 'admin') {
-      document.getElementById('adminUsersBtn').classList.add('visible');
-    }
     setTimeout(() => aplicarPermissoes(), 150);
   }
 })();
@@ -3529,19 +3451,12 @@ function doLogin() {
   const lockEl = document.getElementById('loginLocked');
   const attEl  = document.getElementById('loginAttempts');
 
-  const usuarios = carregarUsuarios();
-  const encontrado = usuarios.find(u => u.user === user && u.pass === pass);
+  const ok = user === CREDENCIAL.user && pass === CREDENCIAL.pass;
 
-  if (encontrado) {
-    usuarioLogado = { user: encontrado.user, role: encontrado.role };
+  if (ok) {
+    usuarioLogado = { user: CREDENCIAL.user, role: CREDENCIAL.role };
     sessionStorage.setItem('hm_auth', 'ok');
-    sessionStorage.setItem('hm_role', encontrado.role);
-    sessionStorage.setItem('hm_user', encontrado.user);
     document.body.classList.add('logged-in');
-
-    if (encontrado.role === 'admin') {
-      document.getElementById('adminUsersBtn').classList.add('visible');
-    }
 
     setTimeout(() => aplicarPermissoes(), 100);
 
@@ -3588,170 +3503,7 @@ function doLogin() {
   }
 }
 
-// ── Painel de usuários ──
-function abrirUsuarios() {
-  if (!usuarioLogado || usuarioLogado.role !== 'admin') return;
-  renderizarUsuarios();
-  document.getElementById('usersOverlay').classList.add('open');
-}
-
-function fecharUsuarios() {
-  document.getElementById('usersOverlay').classList.remove('open');
-  document.getElementById('newUser').value = '';
-  document.getElementById('newPass').value = '';
-  mostrarMsgUsuarios('', '');
-}
-
-document.getElementById('usersOverlay').addEventListener('click', function(e) {
-  if (e.target === this) fecharUsuarios();
-});
-
-function renderizarUsuarios() {
-  const lista = carregarUsuarios();
-  const el    = document.getElementById('usersList');
-
-  el.innerHTML = lista.map((u, i) => {
-    const isOwner     = u.role === 'admin';
-    const isMod       = u.role === 'moderator';
-    const isProtected = u.user === 's/6';
-    const inicial     = u.user.charAt(0).toUpperCase();
-    const prot        = u.pass.substring(0,2) + '••••' + u.pass.slice(-1);
-
-    // Label e cor do cargo
-    const roleLabel = isOwner ? '👑 Dono' : isMod ? '🛡 Administrador' : '👤 Membro';
-    const avatarCls = isOwner ? 'admin-av' : isMod ? 'mod-av' : 'user-av';
-
-    // Resumo de permissões (só tags visuais)
-    const perms = getPermissoesCargo(u.role);
-    const activePerms = Object.entries(PERMS_DEF).filter(([key]) => perms[key]);
-    const permsSummaryHTML = activePerms.slice(0, 5)
-      .map(([, def]) => `<span class="perm-tag">${def.icon} ${def.short}</span>`)
-      .join('') + (activePerms.length > 5
-        ? `<span class="perm-tag">+${activePerms.length - 5}</span>` : '');
-
-    // Botões de ação inline (abaixo do card)
-    const actionsHTML = isProtected ? '' :
-      `<button class="user-act-btn" onclick="toggleEditPass(${i})">✏ Senha</button>
-       <button class="user-act-btn" onclick="toggleEditRole(${i})">🎖 Cargo</button>
-       <button class="user-act-btn" onclick="abrirPermissoes('${u.role}')">🛡 Perms</button>
-       <button class="user-act-btn del" onclick="removerUsuario(${i})">✕ Remover</button>`;
-
-    // Seleção de cargo
-    const jaTemDono = lista.some(x => x.role === 'admin');
-    const donoBtnHTML = (isOwner || !jaTemDono)
-      ? `<button class="role-opt${isOwner?' selected-admin':''}" onclick="definirCargo(${i},'admin')">👑 Dono</button>`
-      : '';
-
-    return `
-    <div class="user-row" id="urow-${i}">
-      <div class="user-row-top">
-        <div class="user-avatar ${avatarCls}">${inicial}</div>
-        <div class="user-info">
-          <div class="user-name">${u.user}${isProtected ? ' <span style="font-size:9px;color:var(--muted);font-family:var(--mono)">(principal)</span>' : ''}</div>
-          <div class="user-role ${u.role}" id="urole-${i}">${roleLabel}</div>
-          <div class="user-pass-display" id="updisp-${i}">Senha: ${prot}</div>
-          ${permsSummaryHTML ? `<div class="perms-summary">${permsSummaryHTML}</div>` : ''}
-        </div>
-        ${isProtected ? '<span style="font-family:var(--mono);font-size:10px;color:var(--muted);background:#f0f0f0;border:1px solid #ddd;border-radius:6px;padding:4px 10px;white-space:nowrap;align-self:flex-start">🔒 Protegido</span>' : ''}
-      </div>
-      <div class="edit-pass-row" id="editrow-${i}">
-        <input class="edit-pass-input" id="editpass-${i}" type="text" placeholder="Nova senha" />
-        <button class="edit-save-btn" onclick="salvarSenha(${i})">Salvar</button>
-      </div>
-      <div class="role-select-row" id="rolerow-${i}">
-        ${donoBtnHTML}
-        <button class="role-opt${isMod?' selected-moderator':''}" onclick="definirCargo(${i},'moderator')">🛡 Administrador</button>
-        <button class="role-opt${(!isOwner&&!isMod)?' selected-user':''}" onclick="definirCargo(${i},'user')">👤 Membro</button>
-      </div>
-      ${!isProtected ? `<div class="user-actions-row">${actionsHTML}</div>` : ''}
-    </div>`;
-  }).join('');
-}
-
-function toggleEditPass(i) {
-  const row  = document.getElementById('editrow-' + i);
-  const disp = document.getElementById('updisp-' + i);
-  const isOpen = row.classList.contains('open');
-  document.querySelectorAll('.edit-pass-row').forEach(r => r.classList.remove('open'));
-  document.querySelectorAll('.role-select-row').forEach(r => r.classList.remove('open'));
-  document.querySelectorAll('.user-pass-display').forEach(d => d.style.display = '');
-  if (!isOpen) {
-    row.classList.add('open');
-    disp.style.display = 'none';
-    document.getElementById('editpass-' + i).focus();
-  }
-}
-
-function toggleEditRole(i) {
-  const row  = document.getElementById('rolerow-' + i);
-  const isOpen = row.classList.contains('open');
-  document.querySelectorAll('.edit-pass-row').forEach(r => r.classList.remove('open'));
-  document.querySelectorAll('.role-select-row').forEach(r => r.classList.remove('open'));
-  document.querySelectorAll('.user-pass-display').forEach(d => d.style.display = '');
-  if (!isOpen) {
-    row.classList.add('open');
-  }
-}
-
-function definirCargo(i, novoCargo) {
-  const lista = carregarUsuarios();
-  if (lista[i].user === 's/6') { mostrarMsgUsuarios('O usuário principal não pode ser editado.', 'err'); return; }
-  // Só pode haver 1 Dono
-  if (novoCargo === 'admin' && lista.some((u, idx) => u.role === 'admin' && idx !== i)) {
-    mostrarMsgUsuarios('Já existe um Dono. Só pode haver 1.', 'err');
-    return;
-  }
-  // Não pode rebaixar o único Dono
-  if (lista[i].role === 'admin' && novoCargo !== 'admin') {
-    mostrarMsgUsuarios('O Dono não pode ter o cargo alterado.', 'err');
-    return;
-  }
-  lista[i].role = novoCargo;
-  salvarUsuarios(lista);
-  renderizarUsuarios();
-  const label = novoCargo === 'admin' ? '👑 Dono' : novoCargo === 'moderator' ? '🛡 Administrador' : '👤 Membro';
-  mostrarMsgUsuarios('Cargo de "' + lista[i].user + '" atualizado para ' + label + '.', 'ok');
-}
-
-function salvarSenha(i) {
-  const lista = carregarUsuarios();
-  if (lista[i].user === 's/6') { mostrarMsgUsuarios('O usuário principal não pode ser editado.', 'err'); return; }
-  const nova = document.getElementById('editpass-' + i).value.trim();
-  if (!nova || nova.length < 4) { mostrarMsgUsuarios('A senha deve ter ao menos 4 caracteres.', 'err'); return; }
-  lista[i].pass = nova;
-  salvarUsuarios(lista);
-  renderizarUsuarios();
-  mostrarMsgUsuarios('Senha de "' + lista[i].user + '" atualizada com sucesso.', 'ok');
-}
-
-function removerUsuario(i) {
-  const lista = carregarUsuarios();
-  if (lista[i].user === 's/6') { mostrarMsgUsuarios('O usuário principal não pode ser removido.', 'err'); return; }
-  if (lista[i].role === 'admin') { mostrarMsgUsuarios('O Dono não pode ser removido.', 'err'); return; }
-  const nome = lista[i].user;
-  lista.splice(i, 1);
-  salvarUsuarios(lista);
-  renderizarUsuarios();
-  mostrarMsgUsuarios('Usuário "' + nome + '" removido.', 'ok');
-}
-
-function adicionarUsuario() {
-  const novoUser = document.getElementById('newUser').value.trim();
-  const novaPass = document.getElementById('newPass').value.trim();
-
-  if (!novoUser) { mostrarMsgUsuarios('Informe um nome de usuário.', 'err'); return; }
-  if (!novaPass || novaPass.length < 4) { mostrarMsgUsuarios('A senha deve ter ao menos 4 caracteres.', 'err'); return; }
-
-  const lista = carregarUsuarios();
-  if (lista.find(u => u.user === novoUser)) { mostrarMsgUsuarios('Usuário "' + novoUser + '" já existe.', 'err'); return; }
-
-  lista.push({ user: novoUser, pass: novaPass, role: 'user' });
-  salvarUsuarios(lista);
-  renderizarUsuarios();
-  document.getElementById('newUser').value = '';
-  document.getElementById('newPass').value = '';
-  mostrarMsgUsuarios('Usuário "' + novoUser + '" adicionado com sucesso!', 'ok');
-}
+// ── Painel de usuários removido (login único) ──
 
 // ══════════════════════════════════════════════
 //  SISTEMA DE PERMISSÕES POR CARGO
@@ -3824,8 +3576,7 @@ function getPermissoesCargo(role) {
 // ── Aplicar permissões à interface ──
 function aplicarPermissoes() {
   if (!usuarioLogado) return;
-  const role  = usuarioLogado.role;
-  const perms = getPermissoesCargo(role);
+  const perms = Object.assign({}, PERMS_DEFAULT.admin);
 
   // Tabs
   const tabMap = {
@@ -3955,7 +3706,7 @@ function salvarPermissoes() {
 
   const label = permsCargoAtual === 'moderator' ? '🛡 Administrador' : '👤 Membro';
   mostrarPermsMsg('✓ Permissões de ' + label + ' salvas!', 'ok');
-  setTimeout(() => { fecharPermissoes(); renderizarUsuarios(); }, 1200);
+  setTimeout(() => { fecharPermissoes(); }, 1200);
 }
 
 function mostrarPermsMsg(texto, tipo) {
@@ -3975,7 +3726,6 @@ function doLogout() {
   sessionStorage.removeItem('hm_user');
   usuarioLogado = null;
   document.body.classList.remove('logged-in');
-  document.getElementById('adminUsersBtn').classList.remove('visible');
   document.getElementById('loginOverlay').style.opacity = '0';
   document.getElementById('loginOverlay').classList.remove('hidden');
   document.getElementById('loginOverlay').style.transition = 'opacity 0.4s ease';
