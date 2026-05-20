@@ -1198,6 +1198,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
       <span>Meta Business</span>
     </button>
+    <button class="tab-btn" onclick="switchTab('base', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      <span>Consultar Base</span>
+    </button>
   </nav>
 
   <!-- TAB 1 — Verificar Números -->
@@ -1597,6 +1601,89 @@
 
     <!-- Stats -->
   </div><!-- /panel-meta -->
+
+  <!-- TAB 5 — Consultar Base -->
+  <div class="tab-panel" id="panel-base">
+
+    <div class="input-section">
+      <div class="section-label" style="display:flex;align-items:center;gap:8px">
+        <svg style="width:12px;height:12px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        Consultar Números na Base
+      </div>
+
+      <!-- aviso base vazia -->
+      <div id="baseNoBaseMsg" style="display:none;margin-bottom:14px;background:rgba(245,197,24,0.06);border:1px solid rgba(245,197,24,0.2);border-radius:10px;padding:12px 16px;font-family:var(--mono);font-size:11px;color:var(--yellow);line-height:1.6">
+        ⚠ Base de dados ainda não foi carregada pelo administrador. Os resultados mostrarão <strong>sem registro</strong> para todos os números.
+      </div>
+
+      <textarea id="baseInput" placeholder="Cole os números aqui, um por linha&#10;Ex:&#10;11999999999&#10;5521988888888&#10;31977777777" style="min-height:130px"></textarea>
+
+      <div class="input-meta">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">Um número por linha · Com ou sem +55 · DDD obrigatório</span>
+        <span class="counter" id="baseCounter">0 números</span>
+      </div>
+
+      <div class="controls" style="margin-top:16px">
+        <button class="btn btn-primary" id="baseSearchBtn" onclick="consultarBase()" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          Consultar
+        </button>
+        <button class="btn btn-secondary" onclick="baseLimpar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          Limpar
+        </button>
+      </div>
+    </div>
+
+    <!-- stats -->
+    <div class="stats-bar" id="baseStatsBar" style="display:none">
+      <div class="stat-pill" id="basePillTotal">
+        <div class="stat-dot dot-gray"></div>
+        <div class="stat-info"><div class="stat-label">Consultados</div><div class="stat-value gray" id="baseTotalVal">0</div></div>
+      </div>
+      <div class="stat-pill" id="basePillFound">
+        <div class="stat-dot dot-green"></div>
+        <div class="stat-info"><div class="stat-label">Encontrados</div><div class="stat-value green" id="baseFoundVal">0</div></div>
+      </div>
+      <div class="stat-pill" id="basePillMiss">
+        <div class="stat-dot dot-red"></div>
+        <div class="stat-info"><div class="stat-label">Não Encontrados</div><div class="stat-value red" id="baseMissVal">0</div></div>
+      </div>
+    </div>
+
+    <!-- resultados -->
+    <div class="results-section" id="baseResultsSection" style="display:none">
+      <div class="results-header">
+        <span class="results-title">Resultado da Consulta</span>
+        <div class="filter-tabs">
+          <button class="filter-tab active" onclick="baseSetFiltro('all',this)">Todos</button>
+          <button class="filter-tab" onclick="baseSetFiltro('found',this)">Encontrados</button>
+          <button class="filter-tab" onclick="baseSetFiltro('miss',this)">Não Encontrados</button>
+        </div>
+      </div>
+      <!-- cabeçalho fixo -->
+      <div id="baseColHeader" style="display:grid;grid-template-columns:32px 1fr 1fr 110px;gap:0;padding:8px 20px;background:var(--surface2);border-bottom:1px solid var(--border)">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">#</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Número</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Operadora / Info</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;text-align:right">Status</span>
+      </div>
+      <div class="results-list" id="baseResultsList" style="max-height:480px;overflow-y:auto"></div>
+    </div>
+
+    <!-- exportar -->
+    <div class="export-bar" id="baseExportBar" style="display:none">
+      <button class="btn btn-secondary" onclick="baseExportCSV()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Exportar Encontrados (CSV)
+      </button>
+      <button class="btn btn-secondary" id="baseCopyBtn" onclick="baseCopiarEncontrados()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        Copiar Encontrados
+      </button>
+    </div>
+
+  </div><!-- /panel-base -->
 
   <div class="dev-footer">
     <span>Desenvolvido por</span>
@@ -3234,6 +3321,7 @@ const PERMS_DEF = {
   tab_sms:     { label: 'SMS Numbers',        desc: 'Acesso à aba de SMS Numbers',                        icon: '💬', short: 'SMS',       category: 'modulo' },
   tab_gmail:   { label: 'Gmail Temp',         desc: 'Acesso à aba de Gmail temporário',                   icon: '📧', short: 'Gmail',     category: 'modulo' },
   tab_meta:    { label: 'Meta / Mídias',      desc: 'Acesso à aba de Meta e redes sociais',               icon: '🛡', short: 'Meta',      category: 'modulo' },
+  tab_base:    { label: 'Consultar Base',     desc: 'Acesso à aba de consulta em lote de números na base', icon: '🗄', short: 'Base',      category: 'modulo' },
   // Ações
   export_csv:  { label: 'Exportar CSV',       desc: 'Permite exportar resultados em CSV',                 icon: '⬇', short: 'CSV',       category: 'acao' },
   copy_actives:{ label: 'Copiar Ativos',      desc: 'Permite copiar números ativos para a área de transferência', icon: '📋', short: 'Copiar', category: 'acao' },
@@ -3244,15 +3332,15 @@ const PERMS_DEF = {
 // Permissões padrão por cargo
 const PERMS_DEFAULT = {
   admin: {
-    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true,
+    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true, tab_base: true,
     export_csv: true, copy_actives: true, load_datora: true, view_gmail: true,
   },
   moderator: {
-    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true,
+    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true, tab_base: true,
     export_csv: true, copy_actives: true, load_datora: false, view_gmail: true,
   },
   user: {
-    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true,
+    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true, tab_base: true,
     export_csv: false, copy_actives: false, load_datora: false, view_gmail: false,
   }
 };
@@ -3291,6 +3379,7 @@ function aplicarPermissoes() {
     tab_sms:     'sms',
     tab_gmail:   'gmail',
     tab_meta:    'meta',
+    tab_base:    'base',
   };
   document.querySelectorAll('.tab-btn').forEach(btn => {
     const onclick = btn.getAttribute('onclick') || '';
@@ -3497,5 +3586,256 @@ document.addEventListener('click', function(e) {
     fecharProfilePanel();
   }
 });
+
+/* ═══════════════════════════════════════════════
+   CONSULTAR BASE — busca em lote
+═══════════════════════════════════════════════ */
+let _baseResults = [];
+let _baseFiltro  = 'all';
+
+(function _initBase() {
+  const ta  = document.getElementById('baseInput');
+  const ctr = document.getElementById('baseCounter');
+  const btn = document.getElementById('baseSearchBtn');
+  if (!ta) return;
+  ta.addEventListener('input', () => {
+    const nums = _baseParseNums(ta.value);
+    ctr.textContent = nums.length + ' número' + (nums.length !== 1 ? 's' : '');
+    ctr.className   = 'counter' + (nums.length > 0 ? ' has-numbers' : '');
+    btn.disabled    = nums.length === 0;
+  });
+})();
+
+function _baseParseNums(text) {
+  return [...new Set(
+    text.split('\n')
+      .map(l => l.trim().replace(/\D/g,''))
+      .filter(l => l.length >= 8 && l.length <= 15)
+  )];
+}
+
+/* normaliza número: remove 55 inicial se tiver, retorna só DDD+número */
+function _baseNorm(raw) {
+  if (raw.startsWith('55') && raw.length > 11) return raw.slice(2);
+  return raw;
+}
+
+const BASE_API = 'https://consultas.cc/proxy/operadora.php?query=';
+
+async function consultarBase() {
+  const nums = _baseParseNums(document.getElementById('baseInput').value);
+  if (!nums.length) return;
+
+  /* UI: loading */
+  const btn = document.getElementById('baseSearchBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spin" style="width:15px;height:15px"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Consultando…`;
+
+  document.getElementById('baseNoBaseMsg').style.display = 'none';
+  document.getElementById('baseStatsBar').style.display  = 'none';
+  document.getElementById('baseResultsSection').style.display = 'none';
+  document.getElementById('baseExportBar').style.display = 'none';
+
+  /* Mostra lista com status "aguardando" enquanto processa */
+  _baseResults = nums.map(raw => ({ raw, norm: _baseNorm(raw), status: 'pending', api: null, local: null }));
+  _baseFiltro = 'all';
+  document.querySelectorAll('#baseResultsSection .filter-tab').forEach((t,i) => t.classList.toggle('active', i===0));
+  document.getElementById('baseResultsSection').style.display = 'block';
+  _baseRender();
+
+  /* Carrega base local como fallback */
+  checkUserBaseAvailability();
+
+  /* Busca na API em paralelo (lotes de 5 para não sobrecarregar) */
+  const LOTE = 5;
+  for (let i = 0; i < _baseResults.length; i += LOTE) {
+    const lote = _baseResults.slice(i, i + LOTE);
+    await Promise.all(lote.map(async item => {
+      /* 1ª tentativa: API consultas.cc */
+      try {
+        const res  = await fetch(BASE_API + encodeURIComponent(item.raw), { signal: AbortSignal.timeout(8000) });
+        if (res.ok) {
+          const data = await res.json();
+          /* API retorna objeto ou array — normaliza */
+          const obj  = Array.isArray(data) ? data[0] : data;
+          if (obj && (obj.operadora || obj.carrier || obj.operator || obj.nome || obj.empresa)) {
+            item.api    = obj;
+            item.status = 'found';
+            return;
+          }
+        }
+      } catch (_) { /* ignora erros de rede */ }
+
+      /* 2ª tentativa: base local (Datora) */
+      if (userRows.length > 0) {
+        const norm  = item.norm;
+        const match = userRows.find(row =>
+          Object.values(row).some(v => {
+            const vn = String(v ?? '').replace(/\D/g,'');
+            return vn === item.raw || vn === norm || _baseNorm(vn) === norm;
+          })
+        );
+        if (match) {
+          item.local  = match;
+          item.status = 'found';
+          return;
+        }
+      }
+
+      item.status = 'miss';
+    }));
+    /* re-renderiza após cada lote para feedback em tempo real */
+    _baseAtualizarStats();
+    _baseRender();
+  }
+
+  /* Finaliza UI */
+  btn.disabled = false;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> Consultar`;
+  _baseAtualizarStats();
+  _baseRender();
+  const found = _baseResults.filter(r => r.status === 'found').length;
+  document.getElementById('baseExportBar').style.display = found > 0 ? 'flex' : 'none';
+}
+
+function _baseAtualizarStats() {
+  const total = _baseResults.length;
+  const found = _baseResults.filter(r => r.status === 'found').length;
+  const miss  = _baseResults.filter(r => r.status === 'miss').length;
+  document.getElementById('baseStatsBar').style.display   = 'flex';
+  document.getElementById('baseTotalVal').textContent = total;
+  document.getElementById('baseFoundVal').textContent = found;
+  document.getElementById('baseMissVal').textContent  = miss;
+  document.getElementById('basePillFound').className  = 'stat-pill' + (found > 0 ? ' active-green' : '');
+  document.getElementById('basePillMiss').className   = 'stat-pill' + (miss  > 0 ? ' active-red'   : '');
+}
+
+function baseSetFiltro(f, btn) {
+  _baseFiltro = f;
+  document.querySelectorAll('#baseResultsSection .filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  _baseRender();
+}
+
+function _baseFormatNum(norm) {
+  if (norm.length === 11) return `(${norm.slice(0,2)}) ${norm.slice(2,7)}-${norm.slice(7)}`;
+  if (norm.length === 10) return `(${norm.slice(0,2)}) ${norm.slice(2,6)}-${norm.slice(6)}`;
+  return norm;
+}
+
+function _baseInfoFromObj(obj) {
+  if (!obj) return '';
+  const keys = Object.keys(obj);
+  /* Campos API consultas.cc */
+  const opKey   = keys.find(k => /^(operadora|carrier|operator|empresa|nome)$/i.test(k)) || keys.find(k => /operad|carrier|operator|empresa/i.test(k));
+  const tipoKey = keys.find(k => /^(tipo|type|servico|service)$/i.test(k)) || keys.find(k => /tipo|type|servic/i.test(k));
+  const portKey = keys.find(k => /^(portado|ported|portability)$/i.test(k)) || keys.find(k => /port/i.test(k));
+  const dddKey  = keys.find(k => /^(ddd|area)$/i.test(k));
+  const estadoKey = keys.find(k => /^(estado|uf|state|region)$/i.test(k));
+
+  let info = '';
+  if (opKey && obj[opKey])     info += `<strong style="color:var(--text)">${escH(String(obj[opKey]))}</strong>`;
+  if (tipoKey && obj[tipoKey]) info += `<span style="color:var(--muted)"> · ${escH(String(obj[tipoKey]))}</span>`;
+  if (dddKey && obj[dddKey])   info += `<span style="color:var(--muted)"> · DDD ${escH(String(obj[dddKey]))}</span>`;
+  if (estadoKey && obj[estadoKey]) info += `<span style="color:var(--muted)"> · ${escH(String(obj[estadoKey]))}</span>`;
+  if (portKey) {
+    const portado = /sim|yes|true|1/i.test(String(obj[portKey]));
+    info += ` <span style="font-size:10px;color:${portado?'var(--cyan)':'var(--muted)'}"> · Portado: ${portado?'SIM':'NÃO'}</span>`;
+  }
+  if (!info) {
+    info = keys.slice(0,4).map(k => `<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${escH(k)}: <strong style="color:var(--text)">${escH(String(obj[k]??'').slice(0,25))}</strong></span>`).join(' · ');
+  }
+  return info;
+}
+
+function _baseRender() {
+  const list = document.getElementById('baseResultsList');
+  const data = _baseFiltro === 'found' ? _baseResults.filter(r => r.status === 'found')
+             : _baseFiltro === 'miss'  ? _baseResults.filter(r => r.status === 'miss')
+             : _baseResults;
+
+  if (!data.length) {
+    list.innerHTML = '<div class="empty-state"><p>Nenhum resultado para este filtro.</p></div>';
+    return;
+  }
+
+  list.innerHTML = data.map((item, idx) => {
+    const display = escH(_baseFormatNum(item.norm));
+
+    /* Pending */
+    if (item.status === 'pending') {
+      return `<div class="result-item" style="grid-template-columns:32px 1fr 1fr 110px;animation-delay:${Math.min(idx*10,200)}ms">
+        <span class="result-idx">${idx+1}</span>
+        <span class="result-number" style="color:var(--muted)">${display}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:4px"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>consultando…
+        </span>
+        <span></span>
+      </div>`;
+    }
+
+    /* Não encontrado */
+    if (item.status === 'miss') {
+      return `<div class="result-item" style="grid-template-columns:32px 1fr 1fr 110px;animation-delay:${Math.min(idx*10,200)}ms">
+        <span class="result-idx">${idx+1}</span>
+        <span class="result-number" style="color:var(--muted)">${display}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">—</span>
+        <span class="result-badge badge-invalid" style="justify-self:end">✕ Não encontrado</span>
+      </div>`;
+    }
+
+    /* Encontrado — prioriza API, fallback local */
+    const obj  = item.api || item.local;
+    const info = _baseInfoFromObj(obj);
+    const src  = item.api ? `<span style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);border-radius:3px;padding:1px 5px;margin-left:4px">API</span>`
+                          : `<span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:4px">BASE</span>`;
+
+    return `<div class="result-item" style="grid-template-columns:32px 1fr 1fr 110px;animation-delay:${Math.min(idx*10,200)}ms">
+      <span class="result-idx">${idx+1}</span>
+      <span class="result-number">${display}${src}</span>
+      <span style="font-family:var(--mono);font-size:11px;line-height:1.6">${info}</span>
+      <span class="result-badge badge-active" style="justify-self:end"><span class="pulse"></span>Encontrado</span>
+    </div>`;
+  }).join('');
+}
+
+function baseLimpar() {
+  document.getElementById('baseInput').value = '';
+  document.getElementById('baseInput').dispatchEvent(new Event('input'));
+  _baseResults = [];
+  ['baseStatsBar','baseResultsSection','baseExportBar'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+  document.getElementById('baseNoBaseMsg').style.display = 'none';
+  ['baseTotalVal','baseFoundVal','baseMissVal'].forEach(id => document.getElementById(id).textContent = '0');
+  document.getElementById('baseResultsList').innerHTML = '';
+}
+
+function baseExportCSV() {
+  const found = _baseResults.filter(r => r.status === 'found');
+  if (!found.length) return;
+  const allKeys = [...new Set(found.flatMap(r => Object.keys(r.api || r.local || {})))];
+  const rows = [['numero','fonte',...allKeys],
+    ...found.map(r => {
+      const obj = r.api || r.local || {};
+      return [r.raw, r.api?'API':'BASE', ...allKeys.map(k => JSON.stringify(obj[k]??''))];
+    })
+  ];
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'}));
+  a.download = 'base_encontrados.csv';
+  a.click();
+}
+
+function baseCopiarEncontrados() {
+  const found = _baseResults.filter(r => r.status === 'found').map(r => r.raw);
+  if (!found.length) return;
+  navigator.clipboard.writeText(found.join('\n')).then(() => {
+    const btn = document.getElementById('baseCopyBtn');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copiado!';
+    setTimeout(() => { btn.innerHTML = orig; }, 2500);
+  });
+}
 
 </script>
