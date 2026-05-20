@@ -1661,13 +1661,6 @@
           <button class="filter-tab" onclick="baseSetFiltro('miss',this)">Não Encontrados</button>
         </div>
       </div>
-      <!-- cabeçalho fixo -->
-      <div id="baseColHeader" style="display:grid;grid-template-columns:32px 1fr 1fr 110px;gap:0;padding:8px 20px;background:var(--surface2);border-bottom:1px solid var(--border)">
-        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">#</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Número</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Operadora / Info</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;text-align:right">Status</span>
-      </div>
       <div class="results-list" id="baseResultsList" style="max-height:480px;overflow-y:auto"></div>
     </div>
 
@@ -3724,28 +3717,35 @@ function _baseFormatNum(norm) {
 }
 
 function _baseInfoFromObj(obj) {
-  if (!obj) return '';
+  if (!obj) return '—';
   const keys = Object.keys(obj);
-  /* Campos API consultas.cc */
-  const opKey   = keys.find(k => /^(operadora|carrier|operator|empresa|nome)$/i.test(k)) || keys.find(k => /operad|carrier|operator|empresa/i.test(k));
-  const tipoKey = keys.find(k => /^(tipo|type|servico|service)$/i.test(k)) || keys.find(k => /tipo|type|servic/i.test(k));
-  const portKey = keys.find(k => /^(portado|ported|portability)$/i.test(k)) || keys.find(k => /port/i.test(k));
-  const dddKey  = keys.find(k => /^(ddd|area)$/i.test(k));
-  const estadoKey = keys.find(k => /^(estado|uf|state|region)$/i.test(k));
 
-  let info = '';
-  if (opKey && obj[opKey])     info += `<strong style="color:var(--text)">${escH(String(obj[opKey]))}</strong>`;
-  if (tipoKey && obj[tipoKey]) info += `<span style="color:var(--muted)"> · ${escH(String(obj[tipoKey]))}</span>`;
-  if (dddKey && obj[dddKey])   info += `<span style="color:var(--muted)"> · DDD ${escH(String(obj[dddKey]))}</span>`;
-  if (estadoKey && obj[estadoKey]) info += `<span style="color:var(--muted)"> · ${escH(String(obj[estadoKey]))}</span>`;
-  if (portKey) {
-    const portado = /sim|yes|true|1/i.test(String(obj[portKey]));
-    info += ` <span style="font-size:10px;color:${portado?'var(--cyan)':'var(--muted)'}"> · Portado: ${portado?'SIM':'NÃO'}</span>`;
+  const opKey   = keys.find(k => /^(operadora|carrier|operator|empresa|nome)$/i.test(k))
+               || keys.find(k => /operad|carrier|operator|empresa/i.test(k));
+  const tipoKey = keys.find(k => /^(tipo|type|servico|service|modalidade)$/i.test(k))
+               || keys.find(k => /tipo|type|servic|modalid/i.test(k));
+  const portKey = keys.find(k => /^(portado|ported|portability|portabilidade)$/i.test(k))
+               || keys.find(k => /port/i.test(k));
+
+  const op   = opKey   ? String(obj[opKey]   ?? '').trim() : '';
+  const tipo = tipoKey ? String(obj[tipoKey] ?? '').trim() : '';
+  const port = portKey ? String(obj[portKey] ?? '').trim() : '';
+
+  /* Monta string no formato do bot: "Operadora (Tipo/Sigla) | Portado: SIM/NÃO" */
+  let result = '';
+
+  if (op && tipo)      result = `${op} (${tipo})`;
+  else if (op)         result = op;
+  else if (tipo)       result = `(${tipo})`;
+  else {
+    /* Fallback: mostra primeiros valores */
+    result = keys.slice(0,3).map(k => String(obj[k]??'').trim()).filter(Boolean).join(' · ') || '—';
   }
-  if (!info) {
-    info = keys.slice(0,4).map(k => `<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${escH(k)}: <strong style="color:var(--text)">${escH(String(obj[k]??'').slice(0,25))}</strong></span>`).join(' · ');
-  }
-  return info;
+
+  const portado = port ? (/sim|yes|true|1/i.test(port) ? 'SIM' : 'NÃO') : null;
+  if (portado !== null) result += ` | Portado: ${portado}`;
+
+  return result;
 }
 
 function _baseRender() {
@@ -3760,41 +3760,46 @@ function _baseRender() {
   }
 
   list.innerHTML = data.map((item, idx) => {
-    const display = escH(_baseFormatNum(item.norm));
+    const numDisplay = escH(item.norm || item.raw);
 
     /* Pending */
     if (item.status === 'pending') {
-      return `<div class="result-item" style="grid-template-columns:32px 1fr 1fr 110px;animation-delay:${Math.min(idx*10,200)}ms">
+      return `<div class="result-item" style="animation-delay:${Math.min(idx*10,200)}ms">
         <span class="result-idx">${idx+1}</span>
-        <span class="result-number" style="color:var(--muted)">${display}</span>
-        <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:4px"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>consultando…
+        <span style="font-family:var(--mono);font-size:13px;color:var(--muted);grid-column:2/5;display:flex;align-items:center;gap:8px">
+          <strong style="color:var(--text)">${numDisplay}</strong>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="width:13px;height:13px;flex-shrink:0"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+          <span style="font-size:11px">consultando…</span>
         </span>
-        <span></span>
       </div>`;
     }
 
     /* Não encontrado */
     if (item.status === 'miss') {
-      return `<div class="result-item" style="grid-template-columns:32px 1fr 1fr 110px;animation-delay:${Math.min(idx*10,200)}ms">
+      return `<div class="result-item" style="animation-delay:${Math.min(idx*10,200)}ms">
         <span class="result-idx">${idx+1}</span>
-        <span class="result-number" style="color:var(--muted)">${display}</span>
-        <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">—</span>
-        <span class="result-badge badge-invalid" style="justify-self:end">✕ Não encontrado</span>
+        <span style="font-family:var(--mono);font-size:13px;grid-column:2/4">
+          <strong style="color:var(--muted)">${numDisplay}</strong>
+          <span style="color:var(--muted)"> → () | Portado: —</span>
+        </span>
+        <span class="result-badge badge-invalid">✕ Não encontrado</span>
       </div>`;
     }
 
-    /* Encontrado — prioriza API, fallback local */
+    /* Encontrado */
     const obj  = item.api || item.local;
     const info = _baseInfoFromObj(obj);
-    const src  = item.api ? `<span style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);border-radius:3px;padding:1px 5px;margin-left:4px">API</span>`
-                          : `<span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:4px">BASE</span>`;
+    const src  = item.api
+      ? `<span style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);border-radius:3px;padding:1px 5px;vertical-align:middle;margin-left:5px">API</span>`
+      : `<span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:3px;padding:1px 5px;vertical-align:middle;margin-left:5px">BASE</span>`;
 
-    return `<div class="result-item" style="grid-template-columns:32px 1fr 1fr 110px;animation-delay:${Math.min(idx*10,200)}ms">
+    return `<div class="result-item" style="animation-delay:${Math.min(idx*10,200)}ms">
       <span class="result-idx">${idx+1}</span>
-      <span class="result-number">${display}${src}</span>
-      <span style="font-family:var(--mono);font-size:11px;line-height:1.6">${info}</span>
-      <span class="result-badge badge-active" style="justify-self:end"><span class="pulse"></span>Encontrado</span>
+      <span style="font-family:var(--mono);font-size:13px;grid-column:2/4;line-height:1.6">
+        <strong style="color:var(--text)">${numDisplay}</strong>${src}
+        <span style="color:var(--muted)"> → </span><span style="color:var(--text)">${escH(info)}</span>
+      </span>
+      <span class="result-badge badge-active"><span class="pulse"></span>OK</span>
     </div>`;
   }).join('');
 }
