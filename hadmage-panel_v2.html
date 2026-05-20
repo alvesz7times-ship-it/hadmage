@@ -31,8 +31,8 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { background: #0a0a0a !important; }
   body { background: #0a0a0a !important; color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; }
-  body::after { content: '秘'; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: clamp(120px,18vw,220px); color: rgba(255,255,255,0.06); font-family: serif; pointer-events: none; z-index: 0; line-height: 1; user-select: none; font-weight: 900; transition: color 0.6s ease; }
-  body.logged-in::after { color: rgba(255,255,255,0.22); }
+  body::after { content: '秘'; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: clamp(80px,15vw,200px); color: rgba(255,255,255,0.04); font-family: serif; pointer-events: none; z-index: 0; line-height: 1; user-select: none; font-weight: 900; transition: color 0.6s ease; }
+  body.logged-in::after { color: rgba(255,255,255,0.10); }
   body::before { display: none; }
   .grid-bg { display: none; }
   .container { position: relative; z-index: 1; max-width: 980px; margin: 0 auto; padding: 16px 16px 80px; }
@@ -1049,7 +1049,8 @@
     .input-section { padding: 14px 12px; border-radius: 12px; }
     textarea { font-size: 12px; min-height: 100px; padding: 12px; }
     .controls { flex-direction: column; }
-    .btn { width: 100%; justify-content: center; }
+    .controls .btn { width: 100%; justify-content: center; }
+    .cpf-card-actions .btn { width: 100%; justify-content: center; }
     .users-box { max-width: 100%; border-radius: 20px 20px 0 0; max-height: 92vh; align-self: flex-end; }
     #usersOverlay { padding: 0; align-items: flex-end; }
     .users-body { padding: 18px 16px; }
@@ -1387,11 +1388,12 @@
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; padding: 5px; overflow-x: auto;
     scrollbar-width: none; flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
   }
   .osint-subnav::-webkit-scrollbar { display: none; }
   .osint-sub-btn {
     flex: 0 0 auto; display: flex; align-items: center; gap: 7px;
-    padding: 8px 16px; border-radius: 8px; border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 8px; border: 1px solid transparent;
     background: transparent; color: var(--muted); font-family: var(--sans);
     font-size: 12px; font-weight: 600; cursor: pointer;
     transition: all 0.2s; white-space: nowrap; letter-spacing: 0.01em;
@@ -1404,6 +1406,17 @@
   }
   .osint-pane { display: none; }
   .osint-pane.active { display: block; }
+  /* Input row — row no desktop, coluna no mobile */
+  .osint-input-row {
+    display: flex; gap: 8px; align-items: stretch; flex-direction: row;
+  }
+  .osint-input-row .osint-input { flex: 1; min-width: 0; }
+  .osint-input-row .btn { flex-shrink: 0; white-space: nowrap; }
+  @media (max-width: 540px) {
+    .osint-input-row { flex-direction: column; }
+    .osint-input-row .btn { width: 100%; justify-content: center; }
+    .osint-sub-btn { padding: 7px 10px; font-size: 11px; }
+  }
   .osint-input {
     width: 100%; background: var(--bg); border: 1px solid var(--border);
     border-radius: 10px; color: var(--text); font-family: var(--mono);
@@ -1411,7 +1424,7 @@
     transition: border-color 0.2s, box-shadow 0.2s;
   }
   .osint-input:focus { border-color: var(--cyan-dim); box-shadow: 0 0 0 3px var(--cyan-glow); }
-  .osint-input::placeholder { color: var(--muted); }
+  .osint-input::placeholder { color: var(--muted); font-size: 12px; }
   .osint-card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 16px; overflow: hidden; margin-top: 16px;
@@ -2235,14 +2248,6 @@
     </div>
   </div><!-- /panel-cpf -->
 
-  <div class="dev-footer">
-    <span>Desenvolvido por</span>
-    <span class="dev-name">s/6</span>
-    <span class="dev-sep">·</span>
-    <a class="dev-contact" href="https://wa.me/5521966663666" target="_blank">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.556 4.122 1.527 5.854L0 24l6.351-1.504A11.943 11.943 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.884 0-3.651-.494-5.188-1.357l-.361-.214-3.769.892.942-3.671-.235-.376A9.962 9.962 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-      +55 (21) 96666-3666
-    </a>
   <!-- TAB OSINT -->
   <div class="tab-panel" id="panel-osint">
 
@@ -2273,8 +2278,8 @@
     <div class="osint-pane active" id="osint-pane-ip">
       <div class="input-section">
         <div class="section-label">IP / Geolocalização</div>
-        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
-          <input class="osint-input" id="osintIpInput" type="text" placeholder="Ex: 8.8.8.8 — deixe vazio para consultar seu próprio IP" style="flex:1;min-width:200px" />
+        <div class="osint-input-row">
+          <input class="osint-input" id="osintIpInput" type="text" placeholder="Ex: 8.8.8.8 — deixe vazio para consultar seu próprio IP" />
           <button class="btn btn-primary" onclick="osintIpConsultar()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             Consultar
@@ -2290,8 +2295,8 @@
     <div class="osint-pane" id="osint-pane-whois">
       <div class="input-section">
         <div class="section-label">Whois de Domínio</div>
-        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
-          <input class="osint-input" id="osintWhoisInput" type="text" placeholder="Ex: google.com" style="flex:1;min-width:200px" />
+        <div class="osint-input-row">
+          <input class="osint-input" id="osintWhoisInput" type="text" placeholder="Ex: google.com" />
           <button class="btn btn-primary" onclick="osintWhoisConsultar()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
             Consultar
@@ -2307,8 +2312,8 @@
     <div class="osint-pane" id="osint-pane-email">
       <div class="input-section">
         <div class="section-label">Verificar Vazamento de Email</div>
-        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
-          <input class="osint-input" id="osintEmailInput" type="email" placeholder="exemplo@email.com" style="flex:1;min-width:200px" />
+        <div class="osint-input-row">
+          <input class="osint-input" id="osintEmailInput" type="email" placeholder="exemplo@email.com" />
           <button class="btn btn-primary" onclick="osintEmailConsultar()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
             Verificar
@@ -2357,8 +2362,8 @@
     <div class="osint-pane" id="osint-pane-username">
       <div class="input-section">
         <div class="section-label">Lookup de Username</div>
-        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
-          <input class="osint-input" id="osintUserInput" type="text" placeholder="Ex: johndoe" oninput="osintUserValidate()" style="flex:1;min-width:200px" />
+        <div class="osint-input-row">
+          <input class="osint-input" id="osintUserInput" type="text" placeholder="Ex: johndoe" oninput="osintUserValidate()" />
           <button class="btn btn-primary" id="osintUserBtn" onclick="osintUserConsultar()" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             Verificar
@@ -2384,6 +2389,16 @@
 
   </div>
   <!-- FIM TAB OSINT -->
+
+  <div class="dev-footer">
+    <span>Desenvolvido por</span>
+    <span class="dev-name">s/6</span>
+    <span class="dev-sep">·</span>
+    <a class="dev-contact" href="https://wa.me/5521966663666" target="_blank">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.556 4.122 1.527 5.854L0 24l6.351-1.504A11.943 11.943 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.884 0-3.651-.494-5.188-1.357l-.361-.214-3.769.892.942-3.671-.235-.376A9.962 9.962 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+      +55 (21) 96666-3666
+    </a>
+  </div><!-- /dev-footer -->
 
   </div>
 </div>
