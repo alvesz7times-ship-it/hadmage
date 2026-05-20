@@ -1101,6 +1101,104 @@
     .cpf-lote-row        { grid-template-columns: 22px 120px 1fr 80px; gap:6px; padding:10px 14px; }
     #cpfDetalheBody      { grid-template-columns: 1fr; }
   }
+
+  /* ══════════════════════════════════════════════
+     CPF RESULT CARD — layout responsivo
+  ══════════════════════════════════════════════ */
+
+  /* Header do card */
+  .cpf-card-header {
+    padding: 20px 24px 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .cpf-card-header-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Grid de campos */
+  #cpfDataGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--border);
+    margin-top: 16px;
+  }
+  .cpf-field {
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    min-width: 0;
+    transition: background .15s;
+  }
+  .cpf-field:hover { background: rgba(255,255,255,.02); }
+  /* Remove borda direita nas colunas pares (coluna da direita) */
+  .cpf-field:nth-child(2n) { border-right: none; }
+  /* Remove borda inferior nos dois últimos campos normais */
+  .cpf-field:nth-last-child(-n+2):not(.full) { border-bottom: none; }
+  /* Campo full-width ocupa as duas colunas */
+  .cpf-field.full {
+    grid-column: 1 / -1;
+    border-right: none;
+  }
+  .cpf-field.full:last-child { border-bottom: none; }
+
+  .cpf-field-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .cpf-field-value {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    word-break: break-word;
+    line-height: 1.4;
+  }
+  .cpf-field-value.green  { color: var(--green);  font-weight: 700; }
+  .cpf-field-value.red    { color: var(--red);    font-weight: 700; }
+  .cpf-field-value.yellow { color: var(--yellow); font-weight: 700; }
+
+  /* Ações do card */
+  .cpf-card-actions {
+    padding: 14px 24px 20px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--border);
+    margin-top: 0;
+  }
+
+  /* ── Mobile ── */
+  @media (max-width: 640px) {
+    .cpf-card-header {
+      padding: 16px 16px 0;
+      gap: 12px;
+    }
+    #cpfDataGrid {
+      grid-template-columns: 1fr;
+      padding-top: 8px;
+    }
+    .cpf-field {
+      padding: 10px 16px;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .cpf-field:last-child { border-bottom: none; }
+    .cpf-field.full { grid-column: 1; }
+    .cpf-field-value { font-size: 12px; }
+    .cpf-card-actions {
+      padding: 12px 16px 16px;
+      flex-direction: column;
+    }
+    .cpf-card-actions .btn { width: 100%; justify-content: center; }
+  }
 </style>
 </head>
 <body>
@@ -1807,9 +1905,9 @@
     <!-- RESULTADO ÚNICO — CARD -->
     <div id="cpfResultCard" style="display:none;animation:fadeUp .4s ease both">
       <div class="results-section">
-        <div style="padding:20px 24px 0;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div class="cpf-card-header">
           <div id="cpfAvatar" style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-family:var(--sans);font-size:22px;font-weight:800;color:#fff;flex-shrink:0;box-shadow:0 0 16px var(--accent-glow)"></div>
-          <div style="flex:1;min-width:0">
+          <div class="cpf-card-header-info">
             <div id="cpfNome" style="font-family:var(--sans);font-size:18px;font-weight:700;color:var(--text);line-height:1.2;word-break:break-word"></div>
             <div id="cpfNumero" style="font-family:var(--mono);font-size:13px;color:var(--muted);letter-spacing:.1em;margin-top:3px"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap">
@@ -1817,10 +1915,10 @@
               <span id="cpfFonteBadge"></span>
             </div>
           </div>
-          <button onclick="cpfClearAll()" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);cursor:pointer;padding:6px 12px;font-family:var(--mono);font-size:10px;transition:all .2s">× Nova consulta</button>
+          <button onclick="cpfClearAll()" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);cursor:pointer;padding:6px 12px;font-family:var(--mono);font-size:10px;transition:all .2s;white-space:nowrap;flex-shrink:0">× Nova consulta</button>
         </div>
-        <div id="cpfDataGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:0;padding:16px 0 0"></div>
-        <div class="cpf-card-actions" style="padding:14px 24px 20px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);margin-top:12px">
+        <div id="cpfDataGrid"></div>
+        <div class="cpf-card-actions">
           <button class="btn btn-secondary" onclick="cpfExportTxt()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             Exportar TXT
@@ -4520,31 +4618,24 @@ async function _cpfFetch(cpf) {
 function _cpfNormalize(raw, cpf) {
   if (!raw || typeof raw !== 'object') return null;
 
-  /* ── Desembrulha wrappers conhecidos (ordem: mais específico → mais genérico) ──
-     Cobre: { resultado: { dados: {...}, emails:[], telefones:[], enderecos:[] } }
-            { data: {...} }, { result: {...} }, { dados: {...} }, etc. */
+  /* ── Desembrulha wrappers: { resultado: { dados:{}, emails:[], telefones:[], enderecos:[] } }
+     e wrappers genéricos: { data:{} }, { result:{} }, { dados:{} }, etc. */
   let obj = raw;
-  let ctx = raw; /* contexto raiz — guarda arrays irmãos como emails/telefones/enderecos */
+  let ctx = raw;
 
-  /* Nível 1: resultado (estrutura hadmage-backend) */
   if (raw.resultado && typeof raw.resultado === 'object') {
     ctx = raw.resultado;
     const d = raw.resultado.dados ?? raw.resultado.data ?? raw.resultado;
     obj = (d && typeof d === 'object' && !Array.isArray(d)) ? d : raw.resultado;
   } else {
-    /* Wrappers genéricos */
     const unwrap = raw.data ?? raw.result ?? raw.results ?? raw.response ?? raw.retorno ?? raw.payload ?? raw.dados;
-    if (unwrap) {
-      obj = Array.isArray(unwrap) ? (unwrap[0] ?? raw) : unwrap;
-      ctx = raw;
-    }
+    if (unwrap) { obj = Array.isArray(unwrap) ? (unwrap[0] ?? raw) : unwrap; ctx = raw; }
   }
   if (Array.isArray(obj)) obj = obj[0] ?? raw;
   if (!obj || typeof obj !== 'object') return null;
   if (obj.error || obj.erro) return null;
 
-  /* ── Extrai primeiro item útil de um array de objetos ──
-     Usado para emails[], telefones[], enderecos[] no padrão hadmage-backend */
+  /* Extrai primeiro valor útil de um array de objetos (emails[], telefones[], enderecos[]) */
   const fromArr = (arrKey, ...fields) => {
     const arr = ctx[arrKey] ?? raw[arrKey];
     if (!Array.isArray(arr) || !arr.length) return '';
@@ -4557,7 +4648,7 @@ function _cpfNormalize(raw, cpf) {
     return '';
   };
 
-  /* ── Helper: busca campo case-insensitive em obj + sub-objetos 1 nível ── */
+  /* Busca campo case-insensitive em obj + sub-objetos 1 nível */
   const g = (...keys) => {
     for (const k of keys) {
       const found = Object.keys(obj).find(ok => ok.toLowerCase() === k.toLowerCase());
@@ -4577,9 +4668,8 @@ function _cpfNormalize(raw, cpf) {
     return '';
   };
 
-  /* ── Mapeamento de campos ── */
   const nome       = g('nome','NOME','name','nome_completo','full_name','NomeCompleto','NM_PESSOA','nm_pessoa','titular','NM_CONTRIBUINTE');
-  const nascimento = g('nasc','nascimento','NASC','NASCIMENTO','data_nascimento','birthday','birth_date','nascto','dt_nascimento','DT_NASC','DataNascimento','data_nasc','DT_NASCIMENTO');
+  const nascimento = g('nasc','NASC','nascimento','NASCIMENTO','data_nascimento','birthday','birth_date','nascto','dt_nascimento','DT_NASC','DataNascimento','data_nasc','DT_NASCIMENTO');
   const sexo       = g('sexo','SEXO','genero','gender','sex','CD_SEXO','SexoDescricao','DS_SEXO','tp_sexo');
   const mae        = g('nome_mae','NOME_MAE','mae','MAE','mother','NM_MAE','NomeMae','nm_mae');
   const pai        = g('nome_pai','NOME_PAI','pai','PAI','father','NM_PAI','NomePai','nm_pai');
@@ -4592,20 +4682,17 @@ function _cpfNormalize(raw, cpf) {
   const tituloEleitor = g('titulo_eleitor','TITULO_ELEITOR','titulo','TITULO','NR_TITULO','nr_titulo','TituloEleitor');
   const rg         = g('rg','RG','identidade','IDENTIDADE','NR_RG','nr_rg','registro_geral');
 
-  /* Email: tenta campo direto, depois array emails[] */
   const email = g('email','EMAIL','e_mail','e-mail','EMAIL_1','email1','ds_email')
              || fromArr('emails','EMAIL','email','ENDERECO','endereco','address');
 
-  /* Telefone: tenta campo direto, depois array telefones[] */
-  const tel1 = g('telefone','TELEFONE','fone','phone','celular','CELULAR','TEL','tel1','telefone1','NR_FONE','NR_CELULAR')
-            || fromArr('telefones','TELEFONE','telefone','NUMERO','numero','number','NR_FONE');
-  const tel2 = g('telefone2','TELEFONE2','fone2','phone2','celular2','TEL2','tel_2');
+  const tel1 = g('telefone','TELEFONE','fone','phone','celular','CELULAR','TEL','tel1','NR_FONE','NR_CELULAR')
+            || fromArr('telefones','TELEFONE','telefone','NUMERO','numero','NR_FONE','number');
+  const tel2 = g('telefone2','TELEFONE2','fone2','phone2','celular2','TEL2');
   const telefone = [tel1, tel2].filter(Boolean).join(' / ');
 
-  /* Endereço: tenta campos diretos, depois array enderecos[] */
   const endComp = g('endereco','ENDERECO','logradouro','LOGRADOURO','address','rua','DS_LOGRADOURO','NM_LOGRADOURO','nm_logradouro')
                || fromArr('enderecos','LOGRADOURO','logradouro','ENDERECO','endereco','address','TIPO_LOGRADOURO');
-  const numEnd  = g('numero','NUMERO','número','num','NR_LOGRADOURO','nr_logradouro','numero_logradouro')
+  const numEnd  = g('numero','NUMERO','número','num','NR_LOGRADOURO','nr_logradouro')
                || fromArr('enderecos','NUMERO','numero','NR_LOGRADOURO','number');
   const compl   = g('complemento','COMPLEMENTO','DS_COMPLEMENTO')
                || fromArr('enderecos','COMPLEMENTO','complemento');
@@ -4614,15 +4701,13 @@ function _cpfNormalize(raw, cpf) {
   const cidade  = g('cidade','CIDADE','municipio','MUNICIPIO','city','localidade','NM_MUNICIPIO','nm_municipio','NM_CIDADE')
                || fromArr('enderecos','CIDADE','cidade','MUNICIPIO','municipio','city');
   const uf      = g('uf','UF','estado','ESTADO','state','CD_UF','sg_uf','SG_UF')
-               || fromArr('enderecos','UF','uf','ESTADO','estado','state','SG_UF');
+               || fromArr('enderecos','UF','uf','ESTADO','estado','SG_UF');
   const cep     = g('cep','CEP','zip','postal_code','CD_CEP','nr_cep','NR_CEP','CEP_LOGRADOURO')
                || fromArr('enderecos','CEP','cep','zip','CD_CEP');
 
-  /* Monta endereço legível */
   const endParts = [endComp, numEnd, compl, bairro].filter(Boolean);
   const endereco = endParts.length ? endParts.join(', ') : '';
 
-  /* Rejeita se não veio absolutamente nenhum campo útil */
   const temDado = nome || nascimento || sexo || mae || pai || situacao || email || telefone || endereco || cidade || uf || cep || renda;
   if (!temDado) return null;
 
@@ -4679,10 +4764,14 @@ function _cpfRenderCard(data) {
   const fonteBadge = document.getElementById('cpfFonteBadge');
   if (fonteBadge) {
     const isOffline = data._offline;
-    const src = data._raw?._fonte || '';
-    fonteBadge.innerHTML = isOffline
-      ? `<span style="font-family:var(--mono);font-size:9px;color:var(--yellow);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">⚡ Validação local</span>`
-      : `<span style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">✓ usuarioconsulta.store</span>`;
+    const isParcial = data._parcial;
+    if (isOffline) {
+      fonteBadge.innerHTML = `<span style="font-family:var(--mono);font-size:9px;color:var(--yellow);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">⚡ Validação local</span>`;
+    } else if (isParcial) {
+      fonteBadge.innerHTML = `<span style="font-family:var(--mono);font-size:9px;color:var(--yellow);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">⚠ Dados parciais</span>`;
+    } else {
+      fonteBadge.innerHTML = `<span style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">✓ usuarioconsulta.store</span>`;
+    }
   }
 
   const badge = document.getElementById('cpfStatusBadge');
@@ -4695,6 +4784,9 @@ function _cpfRenderCard(data) {
   } else if (data._offline) {
     badge.className = 'result-badge badge-checking';
     badge.innerHTML = '○ Validado localmente';
+  } else if (data._parcial) {
+    badge.className = 'result-badge badge-checking';
+    badge.innerHTML = `○ ${situacao || 'Sem cadastro'}`;
   } else {
     badge.className = 'result-badge badge-active';
     badge.innerHTML = '<span class="pulse"></span> Regular';
@@ -4742,10 +4834,21 @@ function _cpfRenderCard(data) {
 /* ── Formatação auxiliar ── */
 function _cpfFmtData(v) {
   if (!v) return '';
-  /* converte YYYYMMDD ou YYYY-MM-DD para DD/MM/YYYY */
-  const m = v.replace(/\D/g,'');
+  const s = v.trim();
+
+  /* DD-MM-YYYY ou DD/MM/YYYY → já no formato certo, só normaliza separador */
+  if (/^\d{2}[-\/]\d{2}[-\/]\d{4}$/.test(s)) {
+    return s.replace(/[-\/]/g, '/');
+  }
+  /* YYYY-MM-DD → DD/MM/YYYY */
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y,mo,d] = s.split('-');
+    return `${d}/${mo}/${y}`;
+  }
+  /* YYYYMMDD (8 dígitos) → DD/MM/YYYY */
+  const m = s.replace(/\D/g,'');
   if (m.length === 8) return `${m.slice(6,8)}/${m.slice(4,6)}/${m.slice(0,4)}`;
-  return v;
+  return s;
 }
 function _cpfFmtSexo(v) {
   if (!v) return '';
