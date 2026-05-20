@@ -4441,44 +4441,55 @@ async function _cpfFetch(cpf) {
 
   const strategies = [
 
-    /* ══ ESTRATÉGIA 1 (PRIORIDADE): usuarioconsulta.store ══ */
+    /* ══ ESTRATÉGIA 1: usuarioconsulta.store direto com timeout curto ══ */
     async () => {
       const url = `https://usuarioconsulta.store/proxy.php?cpf=${n}`;
       const r = await fetch(url, {
-        signal: AbortSignal.timeout(12000),
-        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }
+        signal: AbortSignal.timeout(8000),
+        mode: 'cors',
+        headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
       });
       if (!r.ok) throw new Error(`http_${r.status}`);
       const text = await r.text();
-      if (!text || !text.trim()) throw new Error('empty_response');
-      let d;
-      try { d = JSON.parse(text); } catch { throw new Error('not_json'); }
-      if (d?.error || d?.erro || d?.message?.toLowerCase?.()?.includes?.('não informado')) throw new Error('api_error: ' + (d.error || d.erro || d.message));
+      if (!text || !text.trim() || text.includes('not in allowlist') || text.trim().startsWith('<')) throw new Error('blocked');
+      const d = JSON.parse(text);
+      if (d?.error || d?.erro) throw new Error('api_error: ' + (d.error || d.erro));
       _cpfLogDebug(d, n);
       const norm = _cpfNormalize(d, n);
       if (norm) return norm;
       throw new Error('normalize_failed');
     },
 
-    /* ══ ESTRATÉGIA 2: usuarioconsulta via allorigins (CORS fallback) ══ */
+    /* ══ ESTRATÉGIA 2: usuarioconsulta via allorigins proxy ══ */
     async () => {
       const target = `https://usuarioconsulta.store/proxy.php?cpf=${n}`;
-      const url = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
-      const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
-      if (!r.ok) throw new Error('allorigins_fail');
-      const w = await r.json();
-      const text = w?.contents || '';
-      if (!text || text.trim().startsWith('<') || text.toLowerCase().includes('não informado')) throw new Error('blocked_or_empty');
-      let d;
-      try { d = JSON.parse(text); } catch { throw new Error('not_json'); }
-      if (d?.error || d?.erro) throw new Error('api_error');
-      _cpfLogDebug(d, n);
-      const norm = _cpfNormalize(d, n);
-      if (norm) return norm;
-      throw new Error('normalize_failed');
+      const proxies = [
+        `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`,
+        `https://corsproxy.io/?${encodeURIComponent(target)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(target)}`,
+      ];
+      for (const proxyUrl of proxies) {
+        try {
+          const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
+          if (!r.ok) continue;
+          let text = await r.text();
+          /* allorigins wraps in {contents:...} */
+          try {
+            const w = JSON.parse(text);
+            if (w?.contents) text = w.contents;
+          } catch {}
+          if (!text || text.includes('not in allowlist') || text.trim().startsWith('<')) continue;
+          const d = JSON.parse(text);
+          if (d?.error || d?.erro) continue;
+          _cpfLogDebug(d, n);
+          const norm = _cpfNormalize(d, n);
+          if (norm) return norm;
+        } catch {}
+      }
+      throw new Error('all_proxies_failed');
     },
 
-    /* ══ ESTRATÉGIA 3: consultas.cc CPF proxy ══ */
+    /* ══ ESTRATÉGIA 3: consultas.cc CPF via allorigins ══ */
     async () => {
       const target = `https://consultas.cc/proxy/cpf.php?query=${n}`;
       const url = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
@@ -4488,21 +4499,11 @@ async function _cpfFetch(cpf) {
       const text = w?.contents || '';
       if (!text || text.trim().startsWith('<') || text.toLowerCase().includes('not in allowlist')) throw new Error('blocked');
       const d = JSON.parse(text);
+      if (d?.error || d?.erro) throw new Error('api_error');
       return _cpfNormalize(d, n);
     },
 
-    /* ══ ESTRATÉGIA 4: ReceitaWS via allorigins ══ */
-    async () => {
-      const url = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.receitaws.com.br/v1/cpf/${n}`)}`;
-      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      if (!r.ok) throw new Error('receitaws_fail');
-      const w = await r.json();
-      const d = JSON.parse(w?.contents || '{}');
-      if (d?.nome) return _cpfNormalize(d, n);
-      throw new Error('no_name');
-    },
-
-    /* ══ ESTRATÉGIA 5: validação local (offline) ══ */
+    /* ══ ESTRATÉGIA 4: validação local (offline — retorna CPF válido sem dados) ══ */
     async () => _cpfLocal(n),
   ];
 
@@ -4805,12 +4806,11 @@ async function _cpfConsultarSingle() {
     _cpfLogDebug(data._raw || data, cpf);
 
     if (data._offline && !data.nome) {
-      /* Nenhuma API retornou dados */
-      document.getElementById('cpfErrorBanner').textContent =
-        '⚠ Nenhuma API retornou dados para este CPF. O CPF é válido matematicamente, mas não foi encontrado nas bases consultadas.';
-      document.getElementById('cpfErrorBanner').classList.add('visible');
-      /* Renderiza card offline de qualquer forma */
-      _cpfRenderCard({ ...data, situacao: 'CPF válido (não encontrado nas APIs)' });
+      /* Todas as APIs falharam — mostra aviso mas renderiza card de validação local */
+      const eb = document.getElementById('cpfErrorBanner');
+      eb.textContent = '⚠ Nenhuma fonte externa retornou dados para este CPF. O CPF é matematicamente válido.';
+      eb.classList.add('visible');
+      _cpfRenderCard({ ...data, situacao: 'Válido (sem dados nas APIs)' });
     } else {
       _cpfRenderCard(data);
     }
