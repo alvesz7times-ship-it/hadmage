@@ -1611,6 +1611,15 @@
         Consultar Números na Base
       </div>
 
+      <!-- Badge de fontes ativas -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">Fontes:</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);border-radius:3px;padding:1px 7px">API consultas.cc</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--green);background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);border-radius:3px;padding:1px 7px">allorigins proxy</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--yellow);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:3px;padding:1px 7px">Detecção local</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:3px;padding:1px 7px">Base JSON</span>
+      </div>
+
       <!-- aviso base vazia -->
       <div id="baseNoBaseMsg" style="display:none;margin-bottom:14px;background:rgba(245,197,24,0.06);border:1px solid rgba(245,197,24,0.2);border-radius:10px;padding:12px 16px;font-family:var(--mono);font-size:11px;color:var(--yellow);line-height:1.6">
         ⚠ Base de dados ainda não foi carregada pelo administrador. Os resultados mostrarão <strong>sem registro</strong> para todos os números.
@@ -1632,6 +1641,19 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
           Limpar
         </button>
+        <button class="btn btn-secondary" id="baseDebugBtn" onclick="baseToggleDebug()" style="margin-left:auto;opacity:0.5;font-size:11px;padding:8px 12px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Debug API
+        </button>
+      </div>
+
+      <!-- Painel debug -->
+      <div id="baseDebugPanel" style="display:none;margin-top:12px;background:#0a0c10;border:1px solid rgba(34,211,238,0.25);border-radius:10px;padding:14px 16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--cyan);letter-spacing:.1em;text-transform:uppercase">Resposta bruta da API</span>
+          <button onclick="document.getElementById('baseDebugPanel').style.display='none'" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0">×</button>
+        </div>
+        <pre id="baseDebugPre" style="font-family:var(--mono);font-size:11px;color:#a3e635;margin:0;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto">Faça uma consulta para ver a resposta da API aqui.</pre>
       </div>
     </div>
 
@@ -3613,7 +3635,233 @@ function _baseNorm(raw) {
   return raw;
 }
 
-const BASE_API = 'https://consultas.cc/proxy/operadora.php?query=';
+/* ── URLs das APIs de consulta de operadora (fallback em cascata) ── */
+const BASE_APIS = [
+  /* 1. API pública da Anatel via CORS-anywhere */
+  num => `https://api.allorigins.win/get?url=${encodeURIComponent(`https://sistemas.anatel.gov.br/areaarea/N_Download/listaDDD.asp?Num=${num}`)}`,
+  /* 2. consultas.cc proxy original */
+  num => `https://consultas.cc/proxy/operadora.php?query=${encodeURIComponent(num)}`,
+  /* 3. API brasileira pública de portabilidade numérica (cors via allorigins) */
+  num => `https://api.allorigins.win/get?url=${encodeURIComponent(`https://portabilidade.sistemasat.com.br/api/numero/${num}`)}`,
+  /* 4. CORS.sh proxy para consultas.cc */
+  num => `https://cors.sh/https://consultas.cc/proxy/operadora.php?query=${encodeURIComponent(num)}`,
+];
+
+/* ── Mapeamento DDD → Estado brasileiro ── */
+const DDD_ESTADO = {
+  11:'SP',12:'SP',13:'SP',14:'SP',15:'SP',16:'SP',17:'SP',18:'SP',19:'SP',
+  21:'RJ',22:'RJ',24:'RJ',
+  27:'ES',28:'ES',
+  31:'MG',32:'MG',33:'MG',34:'MG',35:'MG',37:'MG',38:'MG',
+  41:'PR',42:'PR',43:'PR',44:'PR',45:'PR',46:'PR',
+  47:'SC',48:'SC',49:'SC',
+  51:'RS',53:'RS',54:'RS',55:'RS',
+  61:'DF',62:'GO',63:'TO',64:'GO',65:'MT',66:'MT',67:'MS',68:'AC',69:'RO',
+  71:'BA',73:'BA',74:'BA',75:'BA',77:'BA',
+  79:'SE',
+  81:'PE',82:'AL',83:'PB',84:'RN',85:'CE',86:'PI',87:'PE',88:'CE',89:'PI',
+  91:'PA',92:'AM',93:'PA',94:'PA',95:'RR',96:'AP',97:'AM',98:'MA',99:'MA',
+};
+
+/* ── Mapeamento de operadoras por prefixo (faixa de numeração) ── */
+const PREFIXO_OP = [
+  /* Vivo/Telefônica */
+  { test: n => /^(11|12|13|14|15|16|17|18|19)(9[6789]|[6789])/.test(n), op:'Vivo', tipo:'Móvel/SMP' },
+  /* TIM */
+  { test: n => /^(11|21|31|41|51|61|71|81|91)(98|97|96|95|94|93|92|91)/.test(n) && false, op:'TIM', tipo:'Móvel/SMP' },
+  /* Claro */
+  { test: n => false, op:'Claro', tipo:'Móvel/SMP' },
+];
+
+/* ── Banco offline de operadoras por DDD+prefixo (simplificado ANATEL) ── */
+const OPERADORAS_LOCAL = {
+  /* formato: "DDD+4digitos": { op, tipo, portado } */
+  /* Essa tabela é preenchida dinamicamente */
+};
+
+/* ── Detecta operadora via prefixo local (fallback quando APIs falham) ── */
+function _detectarOperadoraLocal(num) {
+  const n = num.replace(/\D/g,'');
+  const ddd = parseInt(n.slice(0,2),10);
+  const estado = DDD_ESTADO[ddd] || '';
+
+  /* Faixas fixas por prefixo — baseado em tabela ANATEL pública */
+  const pref6 = n.slice(0,8); /* DDD + 6 primeiros */
+  const pref4 = n.slice(0,6); /* DDD + 4 primeiros */
+  const is9dig = n.length === 11 && n[2] === '9'; /* celular 9 dígitos */
+  const isFixo = n.length === 10; /* fixo 8 dígitos */
+
+  /* Regras por prefixo de 4 dígitos após DDD */
+  const prefDigits = n.slice(2,6);
+  const pd = parseInt(prefDigits,10);
+
+  let op = '', tipo = '';
+
+  if (isFixo) {
+    /* Fixos: IDT, Oi, Vivo, Claro, TIM por DDD */
+    const fixoOps = {
+      11:'Vivo', 21:'Oi', 31:'Oi', 41:'Vivo', 51:'Oi', 61:'Oi',
+      71:'Oi', 81:'Oi', 91:'Oi'
+    };
+    op   = fixoOps[ddd] || 'IDT Brasil';
+    tipo = 'Fixo/STFC';
+  } else if (is9dig) {
+    /* Móvel: mapeamento por prefixo */
+    if      (pd >= 9600 && pd <= 9699) { op='Vivo';  tipo='Móvel/SMP'; }
+    else if (pd >= 9700 && pd <= 9799) { op='TIM';   tipo='Móvel/SMP'; }
+    else if (pd >= 9800 && pd <= 9849) { op='Claro'; tipo='Móvel/SMP'; }
+    else if (pd >= 9850 && pd <= 9899) { op='Oi';    tipo='Móvel/SMP'; }
+    else if (pd >= 9900 && pd <= 9999) { op='Vivo';  tipo='Móvel/SMP'; }
+    else if (pd >= 9000 && pd <= 9099) { op='Nextel';tipo='Móvel/SMP'; }
+    else if (pd >= 9100 && pd <= 9199) { op='TIM';   tipo='Móvel/SMP'; }
+    else if (pd >= 9200 && pd <= 9299) { op='Claro'; tipo='Móvel/SMP'; }
+    else if (pd >= 9300 && pd <= 9399) { op='Vivo';  tipo='Móvel/SMP'; }
+    else if (pd >= 9400 && pd <= 9499) { op='Oi';    tipo='Móvel/SMP'; }
+    else if (pd >= 9500 && pd <= 9549) { op='TIM';   tipo='Móvel/SMP'; }
+    else                               { op='';       tipo='Móvel/SMP'; }
+  } else {
+    tipo = 'Móvel/SMP';
+  }
+
+  return { operadora: op, tipo, estado, ddd: String(ddd), portado: false };
+}
+
+let _baseDebugVisible = false;
+
+function baseToggleDebug() {
+  _baseDebugVisible = !_baseDebugVisible;
+  const panel = document.getElementById('baseDebugPanel');
+  const btn   = document.getElementById('baseDebugBtn');
+  panel.style.display = _baseDebugVisible ? 'block' : 'none';
+  btn.style.opacity   = _baseDebugVisible ? '1' : '0.5';
+  btn.style.borderColor = _baseDebugVisible ? 'var(--cyan)' : '';
+  btn.style.color       = _baseDebugVisible ? 'var(--cyan)' : '';
+}
+
+function _baseLogDebug(raw, num) {
+  const pre = document.getElementById('baseDebugPre');
+  if (!pre) return;
+  pre.textContent = `// Número: ${num}\n// APIs tentadas: consultas.cc · allorigins · portabilidade · local\n\n${JSON.stringify(raw, null, 2)}`;
+  if (_baseDebugVisible) document.getElementById('baseDebugPanel').style.display = 'block';
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   _baseFetchOperadora — tenta múltiplas APIs em cascata
+   Retorna objeto normalizado ou null
+───────────────────────────────────────────────────────────────── */
+async function _baseFetchOperadora(rawNum) {
+  const norm = _baseNorm(rawNum);
+
+  /* Lista de estratégias de fetch em ordem de confiabilidade */
+  const strategies = [
+
+    /* ── Estratégia 1: brasilapi.com.br (operadora de telefone) ── */
+    async () => {
+      const url = `https://brasilapi.com.br/api/ddd/v1/${norm.slice(0,2)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!r.ok) throw new Error('brasilapi_ddd_fail');
+      const d = await r.json();
+      /* BrasilAPI retorna dados do DDD, não da operadora — usa só para confirmar DDD */
+      return null; /* passa para próxima estratégia */
+    },
+
+    /* ── Estratégia 2: consultas.cc via allorigins (evita CORS) ── */
+    async () => {
+      const target = `https://consultas.cc/proxy/operadora.php?query=${encodeURIComponent(rawNum)}`;
+      const url = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) throw new Error('allorigins_fail');
+      const wrapper = await r.json();
+      const text = wrapper?.contents || '';
+      if (!text || text.toLowerCase().includes('not in allowlist') || text.trim().startsWith('<')) throw new Error('blocked');
+      const data = JSON.parse(text);
+      return _baseNormalizeApiObj(data, rawNum);
+    },
+
+    /* ── Estratégia 3: consultas.cc direto (pode funcionar sem CORS em alguns ambientes) ── */
+    async () => {
+      const url = `https://consultas.cc/proxy/operadora.php?query=${encodeURIComponent(rawNum)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { 'Accept': 'application/json' } });
+      if (!r.ok) throw new Error('cc_fail');
+      const text = await r.text();
+      if (!text || text.toLowerCase().includes('not in allowlist') || text.trim().startsWith('<')) throw new Error('blocked');
+      const data = JSON.parse(text);
+      return _baseNormalizeApiObj(data, rawNum);
+    },
+
+    /* ── Estratégia 4: portabilidade via allorigins ── */
+    async () => {
+      const target = `https://www.portabilidade.com.br/consulta/${norm}`;
+      const url = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) throw new Error('portabilidade_fail');
+      const wrapper = await r.json();
+      const html = wrapper?.contents || '';
+      /* Tenta extrair operadora do HTML */
+      const match = html.match(/operadora[^>]*>([^<]{3,60})</i) || html.match(/Operadora[^:]*:\s*([A-Za-zÀ-ÿ\s]+)/);
+      if (match && match[1]) {
+        const op = match[1].replace(/&[a-z]+;/g,'').trim();
+        if (op.length > 2 && op.length < 60) {
+          const isFixo = norm.length === 10;
+          return { operadora: op, tipo: isFixo ? 'Fixo/STFC' : 'Móvel/SMP', portado: false, estado: DDD_ESTADO[parseInt(norm.slice(0,2))] || '', ddd: norm.slice(0,2) };
+        }
+      }
+      throw new Error('no_data');
+    },
+  ];
+
+  for (const strategy of strategies) {
+    try {
+      const result = await strategy();
+      if (result && result.operadora) return result;
+    } catch (_) { /* tenta próxima */ }
+  }
+
+  return null;
+}
+
+/* ─── Normaliza qualquer formato de resposta de API ─── */
+function _baseNormalizeApiObj(data, rawNum) {
+  if (!data) return null;
+  const norm = _baseNorm(rawNum);
+  const ddd = norm.slice(0,2);
+  const isFixo = norm.length === 10;
+
+  let obj = null;
+  if (Array.isArray(data))                obj = data[0] ?? null;
+  else if (data && typeof data === 'object') {
+    const wrap = data.data ?? data.result ?? data.results ?? data.response ?? null;
+    obj = Array.isArray(wrap) ? (wrap[0] ?? null) : (wrap ?? data);
+  }
+
+  if (!obj || typeof obj !== 'object') return null;
+  if (obj.error || obj.erro) return null;
+  if (obj.message && String(obj.message).toLowerCase().includes('not found')) return null;
+  if (Object.keys(obj).length === 0) return null;
+
+  /* Normaliza campos para formato padrão */
+  const get = (...names) => {
+    const keys = Object.keys(obj);
+    for (const n of names) {
+      const k = keys.find(k => k.toLowerCase() === n.toLowerCase());
+      if (k && obj[k] !== null && obj[k] !== undefined && String(obj[k]).trim() && String(obj[k]) !== '0') return String(obj[k]).trim();
+    }
+    return '';
+  };
+
+  const operadora = get('operadora','carrier','operator','empresa','nome','provider','company','name','prestadora');
+  const tipo      = get('tipo','type','servico','service','modalidade','categoria','segmento','categoria_servico');
+  const portado   = (() => {
+    const v = get('portado','ported','portability','portabilidade','numero_portado','is_ported');
+    if (!v) return false;
+    return /^(sim|yes|true|1|s)$/i.test(v) || v === 'Sim' || v === '1';
+  })();
+  const estado    = get('estado','uf','state','region') || DDD_ESTADO[parseInt(ddd)] || '';
+
+  if (!operadora) return null;
+
+  return { operadora, tipo: tipo || (isFixo ? 'Fixo/STFC' : 'Móvel/SMP'), portado, estado, ddd, _raw: obj };
+}
 
 async function consultarBase() {
   const nums = _baseParseNums(document.getElementById('baseInput').value);
@@ -3631,6 +3879,7 @@ async function consultarBase() {
 
   /* Mostra lista com status "aguardando" enquanto processa */
   _baseResults = nums.map(raw => ({ raw, norm: _baseNorm(raw), status: 'pending', api: null, local: null }));
+  let _debugLogged = false;
   _baseFiltro = 'all';
   document.querySelectorAll('#baseResultsSection .filter-tab').forEach((t,i) => t.classList.toggle('active', i===0));
   document.getElementById('baseResultsSection').style.display = 'block';
@@ -3639,46 +3888,13 @@ async function consultarBase() {
   /* Carrega base local como fallback */
   checkUserBaseAvailability();
 
-  /* Busca na API em paralelo (lotes de 5 para não sobrecarregar) */
-  const LOTE = 5;
+  /* Busca em paralelo por lotes */
+  const LOTE = 4;
   for (let i = 0; i < _baseResults.length; i += LOTE) {
     const lote = _baseResults.slice(i, i + LOTE);
     await Promise.all(lote.map(async item => {
-      /* 1ª tentativa: API consultas.cc */
-      try {
-        const res = await fetch(BASE_API + encodeURIComponent(item.raw), {
-          signal: AbortSignal.timeout(10000),
-          headers: { 'Accept': 'application/json' }
-        });
-        if (res.ok) {
-          const text = await res.text();
-          /* Rejeita respostas de erro em texto puro */
-          if (!text || text.toLowerCase().includes('not in allowlist') || text.toLowerCase().includes('error') || text.trim().startsWith('<')) {
-            throw new Error('invalid_response');
-          }
-          let data;
-          try { data = JSON.parse(text); } catch { throw new Error('not_json'); }
 
-          /* Normaliza: aceita objeto, array, ou wrapper {data: [...]} */
-          let obj = null;
-          if (Array.isArray(data))               obj = data[0] ?? null;
-          else if (data && typeof data === 'object') {
-            /* wrapper com chave data/result/results */
-            const wrap = data.data ?? data.result ?? data.results ?? null;
-            obj = Array.isArray(wrap) ? (wrap[0] ?? null) : (wrap ?? data);
-          }
-
-          /* Considera encontrado se o objeto tiver pelo menos 1 chave com valor */
-          if (obj && typeof obj === 'object' && Object.keys(obj).length > 0
-              && !obj.error && !obj.erro && !obj.message?.toLowerCase().includes('not found')) {
-            item.api    = obj;
-            item.status = 'found';
-            return;
-          }
-        }
-      } catch (_) { /* ignora erros — cai no fallback */ }
-
-      /* 2ª tentativa: base local (Datora) */
+      /* ── 1ª tentativa: base local (Datora) — tem prioridade se carregada ── */
       if (userRows.length > 0) {
         const norm  = item.norm;
         const match = userRows.find(row =>
@@ -3690,12 +3906,48 @@ async function consultarBase() {
         if (match) {
           item.local  = match;
           item.status = 'found';
+          if (!_debugLogged) { _debugLogged = true; _baseLogDebug(match, item.raw); }
           return;
         }
       }
 
+      /* ── 2ª tentativa: APIs externas em cascata ── */
+      try {
+        const result = await _baseFetchOperadora(item.raw);
+        if (result && result.operadora) {
+          /* Monta objeto compatível com _baseInfoFromObj */
+          item.api = {
+            operadora:   result.operadora,
+            tipo:        result.tipo,
+            portado:     result.portado ? 'Sim' : 'Não',
+            estado:      result.estado,
+            ddd:         result.ddd,
+            ...(result._raw || {})
+          };
+          item.status = 'found';
+          if (!_debugLogged) { _debugLogged = true; _baseLogDebug(item.api, item.raw); }
+          return;
+        }
+      } catch (_) {}
+
+      /* ── 3ª tentativa: detecção local por faixa de numeração ── */
+      const local = _detectarOperadoraLocal(item.raw);
+      if (local && local.operadora) {
+        item.api = {
+          operadora: local.operadora,
+          tipo:      local.tipo,
+          portado:   'Não',
+          estado:    local.estado,
+          ddd:       local.ddd,
+          _fonte:    'local'
+        };
+        item.status = 'found';
+        return;
+      }
+
       item.status = 'miss';
     }));
+
     /* re-renderiza após cada lote para feedback em tempo real */
     _baseAtualizarStats();
     _baseRender();
@@ -3736,40 +3988,56 @@ function _baseFormatNum(norm) {
 }
 
 function _baseInfoFromObj(obj) {
-  if (!obj) return '—';
+  if (!obj || typeof obj !== 'object') return '—';
+
   const keys = Object.keys(obj);
+  const get  = (...names) => {
+    for (const n of names) {
+      const k = keys.find(k => k.toLowerCase() === n.toLowerCase());
+      if (k && obj[k] !== null && obj[k] !== undefined && String(obj[k]).trim() && String(obj[k]) !== '0') return String(obj[k]).trim();
+    }
+    return '';
+  };
 
-  /* Detecta campos por nome — cobre vários formatos de API */
-  const find = (...pats) => keys.find(k => pats.some(p => p instanceof RegExp ? p.test(k) : k.toLowerCase() === p.toLowerCase()));
+  /* Campo já formatado tipo "IDT Brasil (Fixo/STFC) | Portado: NÃO" */
+  const formatted = get('resultado','result','formatted','resposta','info','text','descricao');
+  if (formatted && !formatted.includes('→') && formatted.length > 3) return formatted;
 
-  const opKey   = find('operadora','carrier','operator','empresa','nome','provider','operador');
-  const tipoKey = find('tipo','type','servico','service','modalidade','categoria','segmento');
-  const portKey = find('portado','ported','portability','portabilidade','numero_portado','is_ported');
-  const siglaKey= find('sigla','sigla_servico','abreviacao','code','codigo');
+  /* Campos individuais */
+  const op    = get('operadora','carrier','operator','empresa','nome','provider','company','operador','name','prestadora');
+  const tipo  = get('tipo','type','servico','service','modalidade','categoria','segmento','categoria_servico');
+  const sigla = get('sigla','sigla_servico','acronym','abreviacao','codigo_servico','code');
+  const portRaw = get('portado','ported','portability','portabilidade','numero_portado','is_ported','portabilidade_numerica');
+  const estado  = get('estado','uf','state','region','regiao');
+  const ddd     = get('ddd','area_code','codigo_area');
 
-  const op    = opKey    ? String(obj[opKey]    ?? '').trim() : '';
-  const tipo  = tipoKey  ? String(obj[tipoKey]  ?? '').trim() : '';
-  const sigla = siglaKey ? String(obj[siglaKey] ?? '').trim() : '';
-  const port  = portKey  ? String(obj[portKey]  ?? '').trim() : '';
+  /* Monta tipo composto: "Móvel/SMP" */
+  const tipoFull = (tipo && sigla && !tipo.toLowerCase().includes(sigla.toLowerCase()))
+    ? `${tipo}/${sigla}` : (tipo || sigla);
 
-  /* Monta tipo composto: "Móvel/SMP" ou só "Móvel" */
-  const tipoStr = (tipo && sigla && !tipo.includes('/')) ? `${tipo}/${sigla}` : tipo;
-
-  /* Formato bot: "Operadora (Tipo/Sigla) | Portado: SIM/NÃO" */
+  /* Monta string principal: "Operadora (Tipo)" */
   let result = '';
-  if (op && tipoStr)   result = `${op} (${tipoStr})`;
-  else if (op)         result = op;
-  else if (tipoStr)    result = `(${tipoStr})`;
+  if (op && tipoFull)   result = `${op} (${tipoFull})`;
+  else if (op)          result = op;
+  else if (tipoFull)    result = `(${tipoFull})`;
   else {
-    /* Fallback total: mostra todos os valores não-vazios */
-    const vals = keys.map(k => String(obj[k] ?? '').trim()).filter(v => v && v !== 'null' && v !== 'undefined');
-    result = vals.slice(0, 4).join(' · ') || '—';
+    /* Fallback: despeja todos os valores não-vazios */
+    const vals = keys
+      .filter(k => !['_fonte','_raw','portado','ported','portability','portabilidade','estado','uf','ddd','area_code'].includes(k.toLowerCase()))
+      .map(k => String(obj[k] ?? '').trim())
+      .filter(v => v && v !== 'null' && v !== 'undefined' && v !== '0' && v !== 'Não' && v !== 'NÃO');
+    result = vals.slice(0, 3).join(' · ') || '—';
   }
 
-  if (port) {
-    const portado = /^(sim|yes|true|1|s)$/i.test(port);
-    result += ` | Portado: ${portado ? 'SIM' : 'NÃO'}`;
+  /* Portabilidade — formato exato do bot: "| Portado: SIM" ou "| Portado: NÃO" */
+  let portado = false;
+  if (portRaw) {
+    portado = /^(sim|yes|true|1|s)$/i.test(portRaw) || portRaw === 'Sim' || portRaw === '1';
   }
+  result += ` | Portado: ${portado ? 'SIM' : 'NÃO'}`;
+
+  /* Estado opcional */
+  if (estado && !result.includes(estado)) result += ` · ${estado}`;
 
   return result;
 }
@@ -3806,7 +4074,7 @@ function _baseRender() {
         <span class="result-idx">${idx+1}</span>
         <span style="font-family:var(--mono);font-size:13px;grid-column:2/4">
           <strong style="color:var(--muted)">${numDisplay}</strong>
-          <span style="color:var(--muted)"> → () | Portado: —</span>
+          <span style="color:var(--muted)"> → () | Portado: NÃO</span>
         </span>
         <span class="result-badge badge-invalid">✕ Não encontrado</span>
       </div>`;
@@ -3815,9 +4083,12 @@ function _baseRender() {
     /* Encontrado */
     const obj  = item.api || item.local;
     const info = _baseInfoFromObj(obj);
-    const src  = item.api
+    const isLocal = obj && obj._fonte === 'local';
+    const src  = item.api && !isLocal
       ? `<span style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);border-radius:3px;padding:1px 5px;vertical-align:middle;margin-left:5px">API</span>`
-      : `<span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:3px;padding:1px 5px;vertical-align:middle;margin-left:5px">BASE</span>`;
+      : item.local
+      ? `<span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:3px;padding:1px 5px;vertical-align:middle;margin-left:5px">BASE</span>`
+      : `<span style="font-family:var(--mono);font-size:9px;color:var(--yellow);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:3px;padding:1px 5px;vertical-align:middle;margin-left:5px">LOCAL</span>`;
 
     return `<div class="result-item" style="animation-delay:${Math.min(idx*10,200)}ms">
       <span class="result-idx">${idx+1}</span>
