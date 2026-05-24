@@ -3202,7 +3202,7 @@
         </button>
       </div>
       <div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.6">
-        Powered by <strong style="color:#ccc">ip-api.com</strong> — geolocalização gratuita. Suporta IPv4 e IPv6. Limite: 45 req/min.
+        Powered by <strong style="color:#ccc">ipwho.is</strong> — geolocalização gratuita via HTTPS. Suporta IPv4 e IPv6. Fallback automático via ip-api.com.
       </div>
       <div class="ip-error-banner" id="ipError"></div>
     </div>
@@ -7154,21 +7154,67 @@ async function ipConsultar() {
 
   try {
     /* Campos extras: continent, mobile, proxy, hosting */
-    const fields = 'status,message,continent,continentCode,country,countryCode,' +
-                   'region,regionName,city,zip,lat,lon,timezone,isp,org,as,asname,' +
-                   'mobile,proxy,hosting,query';
-    const url = target
-      ? `https://ip-api.com/json/${encodeURIComponent(target)}?fields=${fields}&lang=pt-BR`
-      : `https://ip-api.com/json/?fields=${fields}&lang=pt-BR`;
+    /* ip-api.com requer HTTP no plano gratuito, o que browsers bloqueiam
+       em páginas HTTPS (mixed content). Usamos ipwho.is como fonte primária
+       (HTTPS nativo, gratuito, sem chave) e ip-api.com via proxy CORS como
+       fallback caso o primeiro falhe.                                        */
+    let data = null;
 
-    const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
+    /* ── Fonte 1: ipwho.is (HTTPS, CORS livre) ── */
+    try {
+      const u1   = target
+        ? `https://ipwho.is/${encodeURIComponent(target)}`
+        : `https://ipwho.is/`;
+      const r1   = await fetch(u1, { signal: AbortSignal.timeout(10000) });
+      if (r1.ok) {
+        const j1 = await r1.json();
+        if (j1.success !== false) {
+          /* Normalizar para o esquema ip-api.com que o restante do código usa */
+          data = {
+            status      : 'success',
+            query       : j1.ip,
+            country     : j1.country,
+            countryCode : j1.country_code,
+            continent   : j1.continent,
+            continentCode: j1.continent_code,
+            regionName  : j1.region,
+            region      : j1.region_code,
+            city        : j1.city,
+            zip         : j1.postal,
+            lat         : j1.latitude,
+            lon         : j1.longitude,
+            timezone    : j1.timezone?.id,
+            isp         : j1.connection?.isp,
+            org         : j1.connection?.org,
+            as          : j1.connection?.asn ? `AS${j1.connection.asn}` : null,
+            mobile      : false,
+            proxy       : false,
+            hosting     : j1.type === 'datacenter',
+          };
+        }
+      }
+    } catch (_) { /* tenta o fallback */ }
 
-    if (data.status === 'fail') {
+    /* ── Fonte 2: ip-api.com via proxy HTTPS público ── */
+    if (!data) {
+      const fields = 'status,message,continent,continentCode,country,countryCode,' +
+                     'region,regionName,city,zip,lat,lon,timezone,isp,org,as,' +
+                     'mobile,proxy,hosting,query';
+      const base   = `https://ip-api.com/json/`;
+      const u2     = target
+        ? `${base}${encodeURIComponent(target)}?fields=${fields}`
+        : `${base}?fields=${fields}`;
+      /* Usa o proxy corsproxy.io para contornar mixed-content */
+      const proxy  = `https://corsproxy.io/?url=${encodeURIComponent(u2)}`;
+      const r2     = await fetch(proxy, { signal: AbortSignal.timeout(12000) });
+      if (!r2.ok) throw new Error('HTTP ' + r2.status);
+      data = await r2.json();
+    }
+
+    if (!data || data.status === 'fail') {
       loader.style.display = 'none';
       btn.disabled = false;
-      ipMostrarErro(data.message || 'IP inválido ou não encontrado.');
+      ipMostrarErro(data?.message || 'IP inválido ou não encontrado.');
       return;
     }
 
