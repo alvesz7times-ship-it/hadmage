@@ -3016,6 +3016,24 @@
     <div class="input-section">
       <div class="section-label">OSINT Plus — Consulta em Base JSON</div>
 
+    <!-- Banner: base salva no IndexedDB -->
+    <div id="opSavedBanner" style="display:none; align-items:center; gap:12px; background:rgba(0,229,160,0.06); border:1px solid rgba(0,229,160,0.2); border-radius:10px; padding:12px 16px; margin-bottom:14px; animation:fadeUp 0.4s ease both;">
+      <div style="width:32px;height:32px;border-radius:8px;background:rgba(0,229,160,0.1);border:1px solid rgba(0,229,160,0.25);display:flex;align-items:center;justify-content:center;color:var(--green);flex-shrink:0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+      </div>
+      <div style="flex:1">
+        <div id="opSavedTitle" style="font-family:var(--mono);font-size:12px;color:var(--text);font-weight:700">Base salva</div>
+        <div id="opSavedMeta" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px">—</div>
+      </div>
+      <button onclick="opLoadSaved()" style="display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:7px;border:1px solid rgba(0,229,160,0.3);background:rgba(0,229,160,0.08);color:var(--green);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.2s;white-space:nowrap" onmouseover="this.style.background='rgba(0,229,160,0.15)'" onmouseout="this.style.background='rgba(0,229,160,0.08)'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Carregar
+      </button>
+      <button onclick="opClearSaved()" style="display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:7px;border:1px solid rgba(255,77,77,0.3);background:transparent;color:var(--red);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.2s;white-space:nowrap" onmouseover="this.style.background='rgba(255,77,77,0.08)'" onmouseout="this.style.background='transparent'">
+        ✕ Apagar base
+      </button>
+    </div>
+
       <div class="op-dropzone" id="opDropzone">
         <input type="file" id="opFileInput" accept=".json,.jsonl,.txt,.csv" multiple />
         <div class="op-dropzone-icon">
@@ -3803,8 +3821,12 @@ const IDB_META = 'meta';
 
 function _idbOpen() {
   return new Promise((res, rej) => {
-    const req = indexedDB.open(IDB_DB, 1);
-    req.onupgradeneeded = e => { e.target.result.createObjectStore(IDB_STORE); };
+    const req = indexedDB.open(IDB_DB, 2);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('datora'))     db.createObjectStore('datora');
+      if (!db.objectStoreNames.contains('osint_plus')) db.createObjectStore('osint_plus');
+    };
     req.onsuccess = e => res(e.target.result);
     req.onerror   = e => rej(e.target.error);
   });
@@ -7670,6 +7692,14 @@ function _opMergeAndShow() {
 
   opBuildFilterChips();
   opRender();
+
+  // Salva automaticamente no IndexedDB após merge
+  const fileNames = doneEntries.map(e => e.file.name).join(', ');
+  const now       = new Date().toLocaleString('pt-BR');
+  const saveMeta  = { savedAt: now, fileNames, total: opTotalInFile, fields: opFields.length };
+  _opAutoSave(merged, saveMeta);
+  // Esconde o banner de base salva (nova base substituiu)
+  document.getElementById('opSavedBanner').style.display = 'none';
 }
 
 /* ── Renderiza a lista de arquivos com status ── */
@@ -7778,6 +7808,131 @@ function opClearFile() {
 }
 
 }
+
+/* ═══════════════════════════════════════════════════════
+   OSINT PLUS — IndexedDB (mesma hadmage_db, store 'osint_plus')
+   Padrão idêntico ao Datora para persistência entre sessões.
+═══════════════════════════════════════════════════════ */
+const OP_IDB_DB    = 'hadmage_db';
+const OP_IDB_STORE = 'osint_plus';
+const OP_IDB_KEY   = 'records';
+const OP_IDB_META  = 'meta';
+
+function _opIdbOpen() {
+  return _idbOpen(); // mesma hadmage_db v2, store 'osint_plus' já criada no onupgradeneeded
+}
+
+async function _opIdbSave(records, meta) {
+  try {
+    const db = await _opIdbOpen();
+    await Promise.all([
+      new Promise((res, rej) => {
+        const tx = db.transaction(OP_IDB_STORE, 'readwrite');
+        const r  = tx.objectStore(OP_IDB_STORE).put(records, OP_IDB_KEY);
+        r.onsuccess = res; r.onerror = rej;
+      }),
+      new Promise((res, rej) => {
+        const tx = db.transaction(OP_IDB_STORE, 'readwrite');
+        const r  = tx.objectStore(OP_IDB_STORE).put(meta, OP_IDB_META);
+        r.onsuccess = res; r.onerror = rej;
+      }),
+    ]);
+    return true;
+  } catch { return false; }
+}
+
+async function _opIdbLoad() {
+  try {
+    const db = await _opIdbOpen();
+    const [records, meta] = await Promise.all([
+      new Promise((res, rej) => { const r = db.transaction(OP_IDB_STORE).objectStore(OP_IDB_STORE).get(OP_IDB_KEY); r.onsuccess = e => res(e.target.result); r.onerror = rej; }),
+      new Promise((res, rej) => { const r = db.transaction(OP_IDB_STORE).objectStore(OP_IDB_STORE).get(OP_IDB_META); r.onsuccess = e => res(e.target.result); r.onerror = rej; }),
+    ]);
+    if (!records || !records.length) return null;
+    return { records, meta: meta || {} };
+  } catch { return null; }
+}
+
+async function _opIdbClear() {
+  try {
+    const db = await _opIdbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(OP_IDB_STORE, 'readwrite');
+      tx.objectStore(OP_IDB_STORE).clear().onsuccess = res;
+      tx.onerror = rej;
+    });
+  } catch {}
+}
+
+/* ── Verifica base salva e mostra banner ao abrir a aba ── */
+async function opCheckSavedBanner() {
+  const saved = await _opIdbLoad();
+  if (!saved) return;
+  const meta = saved.meta || {};
+  document.getElementById('opSavedTitle').textContent =
+    `Base salva: ${saved.records.length.toLocaleString('pt-BR')} registros`;
+  document.getElementById('opSavedMeta').textContent = meta.savedAt
+    ? `Salva em ${meta.savedAt} — ${meta.fileNames || '—'}`
+    : 'Base salva anteriormente';
+  document.getElementById('opSavedBanner').style.display = 'flex';
+}
+
+/* ── Carrega a base salva do IDB para memória ── */
+async function opLoadSaved() {
+  const saved = await _opIdbLoad();
+  if (!saved) return;
+  const { records, meta } = saved;
+
+  opAllRecords  = records;
+  opFiltered    = records;
+  opPage        = 1;
+  opFields      = (() => {
+    const s = new Set();
+    records.slice(0, 300).forEach(r => Object.keys(r).forEach(k => s.add(k)));
+    return [...s];
+  })();
+  opActiveFields = [...opFields];
+  opTotalInFile  = meta.total || records.length;
+
+  document.getElementById('opSavedBanner').style.display = 'none';
+  document.getElementById('opDropzone').style.display    = 'none';
+
+  const totalLabel = `${records.length.toLocaleString('pt-BR')} registros`;
+  document.getElementById('opFileName').textContent = meta.fileNames || 'Base salva';
+  document.getElementById('opFileMeta').textContent =
+    `${totalLabel} · ${opFields.length} campos · salva em ${meta.savedAt || '—'}`;
+  document.getElementById('opFileBar').classList.add('visible');
+  document.getElementById('opSearchPanel').style.display = 'block';
+  document.getElementById('opSearchInput').value = '';
+  document.getElementById('opSearchInput').placeholder =
+    `Buscar em ${records.length.toLocaleString('pt-BR')} registros...`;
+
+  opBuildFilterChips();
+  opRender();
+}
+
+/* ── Apaga a base salva do IDB ── */
+async function opClearSaved() {
+  if (!confirm('Apagar a base salva? Os dados serão removidos do armazenamento local.')) return;
+  await _opIdbClear();
+  document.getElementById('opSavedBanner').style.display = 'none';
+}
+
+/* ── Salva automaticamente após merge bem-sucedido ── */
+async function _opAutoSave(records, meta) {
+  const ok = await _opIdbSave(records, meta);
+  const bar = document.getElementById('opFileMeta');
+  if (ok) {
+    const orig = bar.textContent;
+    bar.textContent = orig + ' · ✓ salvo';
+    setTimeout(() => { if (bar.textContent.endsWith('· ✓ salvo')) bar.textContent = orig; }, 3000);
+  } else {
+    bar.title = '⚠ Não foi possível salvar no IndexedDB (modo privado ou armazenamento cheio).';
+  }
+}
+
+/* ── Inicializa o banner ao carregar a página ── */
+(function(){ opCheckSavedBanner(); })();
 
 /* ── Filtros de campo ── */
 function opBuildFilterChips() {
