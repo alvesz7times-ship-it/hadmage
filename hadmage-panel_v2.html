@@ -7637,8 +7637,12 @@ async function opStreamRead(file) {
 
   _opWorker = _opMakeWorker();
   _opWorker.postMessage({ type: 'reset' });
+  const thisWorker = _opWorker; // captura referência para detectar cancelamento
 
   _opWorker.onmessage = function(e) {
+    /* Se o worker foi cancelado (opClearFile), ignora mensagens tardias */
+    if (thisWorker !== _opWorker && _opWorker !== null) return;
+    if (thisWorker !== _opWorker && _opWorker === null) return;
     const msg = e.data;
     if (msg.type === 'progress') {
       opUpdateProgress(msg.pct, msg.count, msg.capped);
@@ -7649,6 +7653,7 @@ async function opStreamRead(file) {
   };
 
   _opWorker.onerror = function(err) {
+    if (thisWorker !== _opWorker) return; // já cancelado
     _opWorker.terminate(); _opWorker = null;
     opHideProgress();
     alert('Erro no worker: ' + err.message);
@@ -7690,7 +7695,10 @@ function opShowProgress(name, size) {
     <div class="op-dropzone-sub" style="margin-top:10px">
       <span id="opProgressPct">0%</span> — <span id="opProgressRecs">0 registros lidos</span>
       <br><strong>${mb}</strong> · parsing em Web Worker, UI não trava
-    </div>`;
+    </div>
+    <button onclick="opClearFile()" style="margin-top:16px;padding:7px 18px;border-radius:8px;border:1px solid rgba(255,77,77,0.4);background:rgba(255,77,77,0.08);color:#ff6b6b;font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='rgba(255,77,77,0.18)'" onmouseout="this.style.background='rgba(255,77,77,0.08)'">
+      ✕ Cancelar
+    </button>`;
 }
 
 function opUpdateProgress(pct, recs, capped) {
@@ -7771,11 +7779,11 @@ function opClearFile() {
   opPage = 1; opTotalInFile = 0;
   if (_opSearchTimer) clearTimeout(_opSearchTimer);
   document.getElementById('opFileBar').classList.remove('visible');
-  const dz = document.getElementById('opDropzone');
-  dz.style.display = '';
-  dz.style.removeProperty('display');
   document.getElementById('opSearchPanel').style.display = 'none';
-  document.getElementById('opFileInput').value = '';
+  /* Restaura a dropzone para o estado inicial (remove spinner/progress) */
+  opHideProgress();
+  const dz = document.getElementById('opDropzone');
+  dz.style.removeProperty('display');
 }
 
 /* ── Filtros de campo ── */
