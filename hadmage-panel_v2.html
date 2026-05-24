@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hadmage — Painel de Consulta v4</title>
+<title>Hadmage — Painel de Consulta v5</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -2453,15 +2453,21 @@
         </div>
 
         <div class="drop-zone" id="datoraDrop">
-          <input type="file" id="datoraFileInput" accept=".json,application/json">
+          <input type="file" id="datoraFileInput" accept=".json,application/json" style="font-size:0">
           <div class="drop-icon" id="dropIcon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <path d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
           </div>
           <div class="drop-title" id="dropTitle">Selecione ou arraste o arquivo JSON</div>
-          <div class="drop-subtitle" id="dropSubtitle">Apenas arquivos <strong>.json</strong> são aceitos<br>Clique para abrir o seletor de arquivos</div>
+          <div class="drop-subtitle" id="dropSubtitle">Apenas arquivos <strong>.json</strong> são aceitos — até <strong>2 GB</strong><br>Clique para abrir o seletor de arquivos</div>
           <div class="drop-file-name" id="dropFileName" style="display:none"></div>
+          <!-- barra de progresso de leitura -->
+          <div id="dropReadProgress" style="display:none;margin-top:14px;width:100%">
+            <div style="height:3px;background:var(--border);border-radius:99px;overflow:hidden">
+              <div id="dropReadBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:99px;transition:width 0.2s ease"></div>
+            </div>
+          </div>
         </div>
 
         <div class="json-preview-wrap" id="jsonPreviewWrap">
@@ -4051,15 +4057,14 @@ function loadBaseFromLS() {
   }
 }
 
-function clearBaseLS() {
+async function clearBaseLS() {
   if (!confirm('Tem certeza que deseja apagar a base de dados? Os usuários não conseguirão mais consultar até uma nova base ser carregada.')) return;
-  localStorage.removeItem(LS_KEY);
-  localStorage.removeItem(LS_META_KEY);
+  await _idbClear();
   datoraRows     = [];
   datoraFiltered = [];
   datoraFields   = [];
-  document.getElementById('datoraResultsWrap').style.display = 'none';
-  document.getElementById('adminLoadedBanner').style.display = 'none';
+  document.getElementById('datoraResultsWrap').style.display  = 'none';
+  document.getElementById('adminLoadedBanner').style.display  = 'none';
   document.getElementById('datoraError').classList.remove('visible');
 }
 
@@ -4090,58 +4095,222 @@ function setupAdminFileInputs() {
 }
 
 /* Verifica se já existe base salva e mostra banner */
-function checkAdminLoadedBanner() {
-  const saved = loadBaseFromLS();
+async function checkAdminLoadedBanner() {
+  await _migrateLS(); /* migra dados legados do localStorage */
+  const saved = await _idbLoad();
   if (!saved) return;
   const banner = document.getElementById('adminLoadedBanner');
   const meta   = saved.meta || {};
-  document.getElementById('adminLoadedTitle').textContent = `Base ativa: ${saved.rows.length.toLocaleString()} registros`;
+  document.getElementById('adminLoadedTitle').textContent = `Base ativa: ${saved.rows.length.toLocaleString('pt-BR')} registros`;
   document.getElementById('adminLoadedMeta').textContent  = meta.savedAt
-    ? `Salva em ${meta.savedAt} — Arquivo: ${meta.fileName||'—'}`
+    ? `Salva em ${meta.savedAt} — Arquivo: ${meta.fileName || '—'}`
     : 'Base carregada anteriormente';
   banner.style.display = 'flex';
-  // Também carrega os dados para a tabela admin
   datoraRows     = saved.rows;
-  datoraFiltered = [...datoraRows];
+  datoraFiltered = datoraRows;
   const allKeys  = new Set();
-  datoraRows.slice(0,200).forEach(r => Object.keys(r).forEach(k => allKeys.add(k)));
-  datoraFields   = [...allKeys].slice(0,8);
-  document.getElementById('dTotalVal').textContent  = datoraRows.length;
+  datoraRows.slice(0, 200).forEach(r => Object.keys(r).forEach(k => allKeys.add(k)));
+  datoraFields   = [...allKeys].slice(0, 8);
+  document.getElementById('dTotalVal').textContent  = datoraRows.length.toLocaleString('pt-BR');
   document.getElementById('dFieldsVal').textContent = allKeys.size;
   document.getElementById('datoraResultsWrap').style.display = 'block';
   renderDatoraColHeader();
   renderDatoraPage();
 }
 
-function handleDatoraFile(file) {
-  if (!file.name.endsWith('.json') && file.type!=='application/json') {
-    showDatoraError('Apenas arquivos .json são aceitos. Envie um arquivo com extensão .json'); return;
+/* ─── Streaming JSON-array parser — suporta arquivos até 2 GB ─── *
+ *  Nunca acumula o texto completo em memória: lê em chunks de 32 MB,
+ *  extrai objetos JSON completos com um parser de estado mínimo e
+ *  atualiza a UI progressivamente via requestIdleCallback/setTimeout.
+ * ─────────────────────────────────────────────────────────────── */
+async function handleDatoraFile(file) {
+  if (!file.name.endsWith('.json') && file.type !== 'application/json') {
+    showDatoraError('Apenas arquivos .json são aceitos. Envie um arquivo com extensão .json');
+    return;
   }
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const parsed = JSON.parse(ev.target.result);
-      datoraRawData = parsed;
-      const datoraDrop = document.getElementById('datoraDrop');
-      datoraDrop.classList.add('has-file');
-      document.getElementById('dropTitle').textContent    = 'Arquivo carregado com sucesso';
-      document.getElementById('dropSubtitle').textContent = 'Clique para trocar o arquivo';
-      const fnEl = document.getElementById('dropFileName');
-      fnEl.textContent = `📄 ${file.name} (${formatFileSize(file.size)})`;
-      fnEl.style.display = 'inline-block';
-      fnEl.dataset.fileName = file.name;
-      document.getElementById('datoraError').classList.remove('visible');
-      renderJsonPreview(parsed);
-      document.getElementById('datoraLoadBtn').disabled = false;
-    } catch { showDatoraError('JSON inválido. Verifique se o arquivo está correto e tente novamente.'); }
-  };
-  reader.readAsText(file);
+
+  /* Limite dinâmico: usa até 60 % da RAM reportada (mín 500k, máx ilimitado) */
+  const ramGb       = navigator.deviceMemory || 4;
+  const MAX_ROWS    = Math.max(500_000, Math.floor(ramGb * 0.6 * 1_000_000));
+  const CHUNK_BYTES = 32 * 1024 * 1024; // 32 MB por chunk
+
+  /* UI: modo progresso de leitura */
+  const datoraDrop  = document.getElementById('datoraDrop');
+  const dropTitle   = document.getElementById('dropTitle');
+  const dropSubtitle= document.getElementById('dropSubtitle');
+  const fnEl        = document.getElementById('dropFileName');
+  const errEl       = document.getElementById('datoraError');
+  const loadBtn     = document.getElementById('datoraLoadBtn');
+
+  errEl.classList.remove('visible');
+  loadBtn.disabled  = true;
+  dropTitle.textContent    = 'Lendo arquivo…';
+  dropSubtitle.textContent = '0 %';
+  fnEl.textContent         = `📄 ${file.name} (${formatFileSize(file.size)})`;
+  fnEl.style.display       = 'inline-block';
+  fnEl.dataset.fileName    = file.name;
+
+  /* Mostra barra de progresso */
+  const readProgress = document.getElementById('dropReadProgress');
+  const readBar      = document.getElementById('dropReadBar');
+  if (readProgress) readProgress.style.display = 'block';
+  if (readBar)      readBar.style.width = '0%';
+
+  /* Parser de estado para extrair objetos do array raiz */
+  const rows        = [];
+  let   tail        = '';       // fragmento pendente entre chunks
+  let   depth       = 0;        // profundidade de chaves/colchetes
+  let   inString    = false;    // dentro de uma string JSON?
+  let   escape      = false;    // caractere de escape pendente?
+  let   foundRoot   = false;    // já encontrou o '[' raiz?
+  let   rootClosed  = false;    // já fechou o ']' raiz?
+  let   objStart    = -1;       // índice do '{' ou '[' do objeto atual
+  let   parseError  = null;
+
+  const decoder = new TextDecoder('utf-8');
+  let   offset  = 0;
+
+  while (offset < file.size && !rootClosed) {
+    const sliceEnd = Math.min(offset + CHUNK_BYTES, file.size);
+    const blob     = file.slice(offset, sliceEnd);
+    const buffer   = await blob.arrayBuffer();
+    const chunk    = tail + decoder.decode(buffer, { stream: true });
+    tail = '';
+
+    let i = 0;
+    const len = chunk.length;
+
+    while (i < len && !rootClosed) {
+      const ch = chunk[i];
+
+      if (escape) { escape = false; i++; continue; }
+
+      if (inString) {
+        if (ch === '\\') { escape = true; }
+        else if (ch === '"') { inString = false; }
+        i++; continue;
+      }
+
+      /* Fora de string */
+      if (ch === '"') { inString = true; i++; continue; }
+
+      if (!foundRoot) {
+        if (ch === '[') { foundRoot = true; }
+        i++; continue;
+      }
+
+      /* Dentro do array raiz */
+      if (depth === 0) {
+        if (ch === '{' || ch === '[') { objStart = i; depth = 1; }
+        else if (ch === ']') { rootClosed = true; }
+        i++; continue;
+      }
+
+      /* Dentro de um objeto/item */
+      if (ch === '{' || ch === '[') { depth++; }
+      else if (ch === '}' || ch === ']') {
+        depth--;
+        if (depth === 0) {
+          /* Objeto completo — tenta fazer parse */
+          const raw = chunk.slice(objStart, i + 1);
+          try {
+            rows.push(JSON.parse(raw));
+          } catch {
+            /* item malformado — ignora e continua */
+          }
+          objStart = -1;
+          if (rows.length >= MAX_ROWS) { rootClosed = true; }
+        }
+      }
+      i++;
+    }
+
+    /* Se estava no meio de um objeto, carrega o fragmento para o próximo chunk */
+    if (objStart !== -1 && !rootClosed) {
+      tail = chunk.slice(objStart);
+    } else if (!rootClosed && depth === 0) {
+      /* Pode ter whitespace residual entre objetos */
+      tail = chunk.slice(i);
+    }
+
+    offset += CHUNK_BYTES;
+
+    /* Atualiza progresso na UI sem bloquear a thread */
+    const pct = Math.round((offset / file.size) * 100);
+    dropSubtitle.textContent = `${Math.min(pct, 100)} % — ${rows.length.toLocaleString('pt-BR')} registros lidos`;
+    if (readBar) readBar.style.width = Math.min(pct, 100) + '%';
+    await new Promise(r => setTimeout(r, 0)); // yield
+  }
+
+  if (!foundRoot && !parseError) {
+    /* Pode ser um JSON objeto único ou array de primitivos — tenta JSON.parse do início */
+    if (file.size < 512 * 1024 * 1024) {
+      try {
+        const text   = await file.text();
+        const parsed = JSON.parse(text);
+        datoraRawData = parsed;
+        _finalizeDatoraLoad(file, datoraDrop, dropTitle, dropSubtitle, fnEl, loadBtn, null);
+        return;
+      } catch {
+        showDatoraError('JSON inválido. Verifique se o arquivo está correto e tente novamente.');
+        dropTitle.textContent    = 'Selecione ou arraste o arquivo JSON';
+        dropSubtitle.innerHTML   = 'Apenas arquivos <strong>.json</strong> são aceitos<br>Clique para abrir o seletor de arquivos';
+        return;
+      }
+    } else {
+      showDatoraError('Formato não reconhecido. O arquivo precisa ser um array JSON: [ {...}, {...}, ... ]');
+      dropTitle.textContent    = 'Selecione ou arraste o arquivo JSON';
+      dropSubtitle.innerHTML   = 'Apenas arquivos <strong>.json</strong> são aceitos<br>Clique para abrir o seletor de arquivos';
+      return;
+    }
+  }
+
+  if (rows.length === 0) {
+    showDatoraError('Nenhum registro encontrado no arquivo. Verifique se é um array de objetos JSON.');
+    dropTitle.textContent    = 'Selecione ou arraste o arquivo JSON';
+    dropSubtitle.innerHTML   = 'Apenas arquivos <strong>.json</strong> são aceitos<br>Clique para abrir o seletor de arquivos';
+    return;
+  }
+
+  /* Monta datoraRawData como array de objetos já prontos */
+  datoraRawData = rows;
+  _finalizeDatoraLoad(file, datoraDrop, dropTitle, dropSubtitle, fnEl, loadBtn,
+    rows.length >= MAX_ROWS
+      ? `⚠ Limite de ${MAX_ROWS.toLocaleString('pt-BR')} registros atingido. Arquivo truncado — aumente a RAM disponível para carregar mais.`
+      : null);
+}
+
+function _finalizeDatoraLoad(file, datoraDrop, dropTitle, dropSubtitle, fnEl, loadBtn, warning) {
+  /* Esconde barra de leitura */
+  const rp = document.getElementById('dropReadProgress');
+  const rb = document.getElementById('dropReadBar');
+  if (rp) rp.style.display = 'none';
+  if (rb) rb.style.width = '0%';
+
+  datoraDrop.classList.add('has-file');
+  dropTitle.textContent    = 'Arquivo carregado com sucesso';
+  dropSubtitle.textContent = 'Clique para trocar o arquivo';
+  fnEl.textContent         = `📄 ${file.name} (${formatFileSize(file.size)})`;
+  fnEl.style.display       = 'inline-block';
+  fnEl.dataset.fileName    = file.name;
+  document.getElementById('datoraError').classList.remove('visible');
+
+  const data = datoraRawData;
+  renderJsonPreview(Array.isArray(data) ? data : data);
+  loadBtn.disabled = false;
+
+  if (warning) {
+    const el = document.getElementById('datoraError');
+    el.textContent = warning;
+    el.classList.add('visible');
+  }
 }
 
 function formatFileSize(bytes) {
-  if (bytes<1024) return bytes+' B';
-  if (bytes<1048576) return (bytes/1024).toFixed(1)+' KB';
-  return (bytes/1048576).toFixed(1)+' MB';
+  if (bytes < 1024)        return bytes + ' B';
+  if (bytes < 1048576)     return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824)  return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(2) + ' GB';
 }
 
 function showDatoraError(msg) {
@@ -4211,48 +4380,169 @@ function normalizeToRows(data) {
   return [{ valor:data }];
 }
 
-/* ─── Salvar base no localStorage ─── */
-function loadDatoraData() {
+/* ─── IndexedDB helpers — substitui localStorage para grandes bases ─── */
+const IDB_DB   = 'hadmage_db';
+const IDB_STORE= 'datora';
+const IDB_KEY  = 'base';
+const IDB_META = 'meta';
+
+function _idbOpen() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(IDB_DB, 1);
+    req.onupgradeneeded = e => { e.target.result.createObjectStore(IDB_STORE); };
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function _idbSave(rows, meta) {
+  try {
+    const db = await _idbOpen();
+    await Promise.all([
+      new Promise((res, rej) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        const s  = tx.objectStore(IDB_STORE);
+        const r  = s.put(rows, IDB_KEY);
+        r.onsuccess = res; r.onerror = rej;
+      }),
+      new Promise((res, rej) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        const s  = tx.objectStore(IDB_STORE);
+        const r  = s.put(meta, IDB_META);
+        r.onsuccess = res; r.onerror = rej;
+      }),
+    ]);
+    return true;
+  } catch { return false; }
+}
+
+async function _idbLoad() {
+  try {
+    const db = await _idbOpen();
+    const [rows, meta] = await Promise.all([
+      new Promise((res, rej) => { const r = db.transaction(IDB_STORE).objectStore(IDB_STORE).get(IDB_KEY); r.onsuccess = e => res(e.target.result); r.onerror = rej; }),
+      new Promise((res, rej) => { const r = db.transaction(IDB_STORE).objectStore(IDB_STORE).get(IDB_META); r.onsuccess = e => res(e.target.result); r.onerror = rej; }),
+    ]);
+    if (!rows) return null;
+    return { rows, meta: meta || {} };
+  } catch { return null; }
+}
+
+async function _idbClear() {
+  try {
+    const db = await _idbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).clear().onsuccess = res;
+      tx.onerror = rej;
+    });
+    /* também limpa o localStorage legado se existir */
+    try { localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_META_KEY); } catch {}
+  } catch {}
+}
+
+/* Backward-compat: se ainda houver dados no localStorage, migra para IDB */
+async function _migrateLS() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const rows = JSON.parse(raw);
+    const meta = JSON.parse(localStorage.getItem(LS_META_KEY) || '{}');
+    await _idbSave(rows, meta);
+    localStorage.removeItem(LS_KEY);
+    localStorage.removeItem(LS_META_KEY);
+  } catch {}
+}
+
+/* ─── Salvar base no IndexedDB (async, sem travar a UI) ─── */
+async function loadDatoraData() {
   if (!datoraRawData) return;
-  datoraRows     = normalizeToRows(datoraRawData);
-  datoraFiltered = [...datoraRows];
-  datoraPage     = 1;
 
-  const allKeys = new Set();
-  datoraRows.slice(0,200).forEach(r => Object.keys(r).forEach(k => allKeys.add(k)));
-  datoraFields = [...allKeys].slice(0,8);
+  const btn  = document.getElementById('datoraLoadBtn');
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Salvando…`;
 
-  /* Salvar no localStorage */
-  const fnEl    = document.getElementById('dropFileName');
-  const fileName = fnEl.dataset.fileName || 'arquivo.json';
-  const now      = new Date().toLocaleString('pt-BR');
-  const meta     = { savedAt:now, fileName, total:datoraRows.length };
-  const ok = saveBaseToLS(datoraRows, meta);
-
-  if (!ok) {
-    showDatoraError('Não foi possível salvar no localStorage (arquivo pode ser muito grande). Tente um JSON menor.');
-    return;
+  /* Normalização em fatias para não bloquear a thread */
+  const raw = datoraRawData;
+  let rows;
+  if (Array.isArray(raw)) {
+    /* Já é array (veio do parser streaming) — usa direto */
+    rows = raw;
+  } else {
+    rows = await _normalizeAsync(raw);
   }
 
-  document.getElementById('dTotalVal').textContent  = datoraRows.length;
+  datoraRows     = rows;
+  datoraFiltered = rows; /* referência, sem cópia — economiza RAM */
+  datoraPage     = 1;
+
+  /* Descobre campos varrendo até 500 linhas */
+  const allKeys = new Set();
+  const sample  = Math.min(rows.length, 500);
+  for (let i = 0; i < sample; i++) Object.keys(rows[i]).forEach(k => allKeys.add(k));
+  datoraFields = [...allKeys].slice(0, 8);
+
+  /* Salva no IndexedDB */
+  const fnEl     = document.getElementById('dropFileName');
+  const fileName = fnEl.dataset.fileName || 'arquivo.json';
+  const now      = new Date().toLocaleString('pt-BR');
+  const meta     = { savedAt: now, fileName, total: rows.length };
+
+  btn.innerHTML = `<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Persistindo…`;
+  await new Promise(r => setTimeout(r, 0));
+
+  const ok = await _idbSave(rows, meta);
+  if (!ok) {
+    /* IDB falhou (privado/storage cheio) — avisa mas continua em memória */
+    const el = document.getElementById('datoraError');
+    el.textContent = '⚠ Não foi possível persistir no IndexedDB. Os dados estão carregados em memória apenas para esta sessão.';
+    el.classList.add('visible');
+  }
+
+  document.getElementById('dTotalVal').textContent  = rows.length.toLocaleString('pt-BR');
   document.getElementById('dFieldsVal').textContent = allKeys.size;
   document.getElementById('datoraResultsWrap').style.display = 'block';
 
-  /* Atualiza banner */
   const banner = document.getElementById('adminLoadedBanner');
-  document.getElementById('adminLoadedTitle').textContent = `Base ativa: ${datoraRows.length.toLocaleString()} registros`;
+  document.getElementById('adminLoadedTitle').textContent = `Base ativa: ${rows.length.toLocaleString('pt-BR')} registros`;
   document.getElementById('adminLoadedMeta').textContent  = `Salva em ${now} — Arquivo: ${fileName}`;
   banner.style.display = 'flex';
 
   renderDatoraColHeader();
   renderDatoraPage();
 
-  /* Feedback no botão */
-  const btn  = document.getElementById('datoraLoadBtn');
-  const orig = btn.innerHTML;
   btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg> Base Salva!`;
-  btn.disabled  = true;
   setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 2500);
+}
+
+/* Normaliza de forma assíncrona em lotes para não travar */
+async function _normalizeAsync(data) {
+  if (Array.isArray(data)) {
+    if (data.every(i => typeof i === 'object' && i !== null && !Array.isArray(i))) return data;
+    return data.map((v, i) => ({ '#': i + 1, valor: v }));
+  }
+  if (typeof data === 'object' && data !== null) {
+    const vals = Object.values(data);
+    if (vals.every(Array.isArray)) {
+      const keys = Object.keys(data);
+      const len  = Math.max(...vals.map(a => a.length));
+      const BATCH = 50_000;
+      const out   = [];
+      for (let i = 0; i < len; i += BATCH) {
+        const end = Math.min(i + BATCH, len);
+        for (let j = i; j < end; j++) {
+          const row = {};
+          keys.forEach(k => { row[k] = data[k][j] ?? ''; });
+          out.push(row);
+        }
+        await new Promise(r => setTimeout(r, 0));
+      }
+      return out;
+    }
+    return [data];
+  }
+  return [{ valor: data }];
 }
 
 function renderDatoraColHeader() {
@@ -4307,9 +4597,33 @@ function pageRange(current,total,size) {
   return Array.from({length:end-start+1},(_,i)=>start+i);
 }
 
+let _searchDebounce = null;
 function datoraSearchFilter() {
+  clearTimeout(_searchDebounce);
+  _searchDebounce = setTimeout(_runDatoraSearch, 220);
+}
+
+async function _runDatoraSearch() {
   const q = document.getElementById('datoraSearch').value.trim().toLowerCase();
-  datoraFiltered = q ? datoraRows.filter(row => Object.values(row).some(v => String(v??'').toLowerCase().includes(q))) : [...datoraRows];
+  if (!q) {
+    datoraFiltered = datoraRows;
+    datoraPage = 1;
+    renderDatoraPage();
+    return;
+  }
+  /* Busca em lotes de 50k para não travar a thread */
+  const BATCH = 50_000;
+  const out   = [];
+  for (let i = 0; i < datoraRows.length; i += BATCH) {
+    const end = Math.min(i + BATCH, datoraRows.length);
+    for (let j = i; j < end; j++) {
+      const row = datoraRows[j];
+      if (Object.values(row).some(v => String(v ?? '').toLowerCase().includes(q))) out.push(row);
+    }
+    /* Yield a cada lote */
+    await new Promise(r => setTimeout(r, 0));
+  }
+  datoraFiltered = out;
   datoraPage = 1;
   renderDatoraPage();
 }
@@ -4349,8 +4663,8 @@ function exportDatoraCSV() {
 /* Carrega: primeiro tenta localStorage (admin), senão usa dados embutidos */
 let userRows = [];
 
-function checkUserBaseAvailability() {
-  const saved = loadBaseFromLS();
+async function checkUserBaseAvailability() {
+  const saved = await _idbLoad();
   if (saved && saved.rows && saved.rows.length > 0) {
     userRows = saved.rows;
   } else if (typeof DATORA_EMBEDDED !== 'undefined' && DATORA_EMBEDDED.length > 0) {
