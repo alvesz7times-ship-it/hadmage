@@ -8077,23 +8077,35 @@ function opRender() {
   }
   empty.style.display = 'none';
 
-  const previewFields = ['nick','name','firstName','lastName','phone','email',
-    'adapterUserId','ref','customerId'].filter(f => opFields.includes(f));
+  // Campos prioritários para prévia — usa os do registro se os padrão não existirem
+  const PRIO_FIELDS = ['nick','nik','name','fname','firstName','lastName','phone','uid',
+    'email','adapterUserId','ref','customerId','Системный номер'];
+  const prioHit = PRIO_FIELDS.filter(f => opFields.includes(f));
+  // Se menos de 2 campos prioritários, usa os primeiros campos reais
+  const previewFields = prioHit.length >= 2 ? prioHit
+    : opFields.filter(f => f && f !== 'wo').slice(0, 6);
 
   /* Usa DocumentFragment para evitar múltiplos reflows */
   const frag = document.createDocumentFragment();
   slice.forEach((rec, idx) => {
     const realIdx = start + idx;
-    const nameVal = rec.name || rec.nick || rec.firstName || rec.login || rec.username
-      || Object.values(rec).find(v => typeof v === 'string' && v.trim()) || '—';
-    const initial  = (String(nameVal).replace(/[^a-zA-ZА-яёЁ]/g,'')[0] || '?').toUpperCase();
-    const subText  = rec.adapterUserId ? `ID: ${rec.adapterUserId}` : (rec.id ? `ID: ${rec.id}` : '');
+    const nameVal = rec.name || rec.nick || rec.fname || rec.nik || rec.firstName
+      || rec.login || rec.username
+      || Object.values(rec).find(v => typeof v === 'string' && v.trim() && !/^\d+$/.test(v.trim())) || '—';
+    const initial  = (String(nameVal).replace(/[^a-zA-ZА-яёЁ\u0600-\u06FF]/g,'')[0] || '?').toUpperCase();
+    const subText  = rec.adapterUserId ? `ID: ${rec.adapterUserId}` : (rec.uid ? `ID: ${rec.uid}` : (rec.id ? `ID: ${rec.id}` : ''));
     const unsub    = rec.unsubscribed;
 
-    const rowsHtml = previewFields.slice(0, 5).map(f => {
+    // Usa campos do registro atual para prévia (evita campos vazios)
+    const recFields = previewFields.length >= 2 ? previewFields
+      : Object.keys(rec).filter(f => rec[f] !== null && rec[f] !== undefined && rec[f] !== '').slice(0, 6);
+
+    const rowsHtml = recFields.slice(0, 5).map(f => {
       const v = rec[f];
       if (v === undefined || v === null || v === '') return '';
-      const cls = (f==='phone'||f==='email') ? 'green' : (f==='adapterUserId'||f==='customerId') ? 'accent' : '';
+      const fLow = f.toLowerCase();
+      const cls = (fLow.includes('phone')||fLow.includes('tel')||fLow==='uid'||fLow.includes('email')) ? 'green'
+                : (fLow.includes('adapter')||fLow.includes('customer')) ? 'accent' : '';
       return `<div class="op-card-row"><span class="op-card-key">${_escO(f)}</span><span class="op-card-val ${cls}">${_escO(String(v))}</span></div>`;
     }).join('');
 
