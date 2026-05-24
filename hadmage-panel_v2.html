@@ -8442,13 +8442,14 @@ function detectFormat(text) {
     if (s.indexOf('\n') !== -1 || s.indexOf('\r') !== -1) return 'jsonl';
     return 'single';
   }
-  // CSV: primeira linha não começa com { nem [ e tem separador identificável
+  // CSV: primeira linha não começa com { nem [ — detecta por separador ou trata como CSV de coluna única
   const firstLine = s.split(/\r?\n/)[0];
-  if (firstLine && /[,;\t]/.test(firstLine)) {
+  if (firstLine) {
     csvDelimiter = csvDetectDelimiter(firstLine);
     csvHeaders   = csvParseLine(firstLine.replace(/^\uFEFF/, ''), csvDelimiter)
-                     .map(h => h.replace(/^"|"$/g, '').trim());
-    return 'csv';
+                     .map(h => h.replace(/^"|"$/g, '').trim())
+                     .filter(h => h.length > 0);
+    if (csvHeaders.length > 0) return 'csv';
   }
   return 'jsonl';
 }
@@ -8484,21 +8485,7 @@ function extractObjects(str, limit) {
   return [out, (start !== -1) ? str.slice(start) : str.slice(i)];
 }
 
-function detectFormat(text) {
-  const s = text.replace(/^\uFEFF/, '').trimStart();
-  if (!s) return null;
-  const ch = s[0];
-  if (ch === '[') return 'array';
-  if (ch === '{') {
-    // Objeto-raiz com array: {"key": [...]}
-    const m = s.match(/^\{\s*"(\w+)"\s*:\s*\[/);
-    if (m) { rootKey = m[1]; return 'root-array'; }
-    // Múltiplas linhas = JSONL
-    if (s.indexOf('\n') !== -1 || s.indexOf('\r') !== -1) return 'jsonl';
-    return 'single';
-  }
-  return 'jsonl';
-}
+/* detectFormat definido acima — esta cópia removida */
 
 function pushRecord(obj) {
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
